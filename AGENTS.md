@@ -40,20 +40,36 @@ Follow a **Feature-Driven (Domain) Architecture** aligned with the backend modul
 
 - **Local vs Global:** Prioritize React local state (`useState`, `useReducer`). Use Zustand *only* for globally shared
   state (e.g., Current POS Cart, Authenticated User Session, Theme).
+- **Persistence:** When a Zustand slice must survive reload (e.g., auth session), use the `persist` middleware with
+  `partialize` to whitelist only the persisted keys. Re-validate derived flags (e.g., `isAuthenticated`,
+  token expiry) inside `onRehydrateStorage` — never trust the persisted flag directly.
 - **Styling:** Use Tailwind CSS v4. Do **NOT** create or look for a `tailwind.config.js` file. All configuration and
   custom variables must go into `src/index.css`.
+- **Icons:** Use `lucide-react` for iconography.
 - **Design System:** Strictly follow the design rules and component guidelines defined in the project's local design
   system rules.
 
 ### Integration and APIs (Axios)
 
+- **Base URL:** The Axios instance reads from `import.meta.env.VITE_API_URL` (fallback `http://localhost:8080`) and
+  bakes the `/api/v1` prefix into `baseURL`. Feature code uses clean paths like `/auth/login`, `/products`, etc.
+  Configure the env via `.env` at the repo root (see `.env.example`).
+- **Auth endpoints:** `POST /auth/login` (store users, body `{ storeCode, username, password }`) and
+  `POST /admin/login` (SaaS admins, body `{ username, password }`).
+- **storeCode vs storeId:** The store login *request body* uses `storeCode` (string, e.g., `"STORE001"`).
+  The decoded JWT *claims* use `storeId` (number) plus `userId`, `role`, `sub`, `iss`, `iat`, `exp`. Do not confuse
+  the two: never send `storeId` to login, never send `storeCode` to authenticated endpoints.
 - **TypeScript DTOs:** Never use `any`. Always define strict TypeScript `interfaces` or `types` that perfectly match the
   backend DTOs (`PageResponse<T>`, `ErrorResponse`, etc.).
-- **Auth Interceptors:** Implement Axios interceptors to automatically attach the JWT token.
-- **Token Decoding:** Understand that store tokens contain `storeId`, `userId`, `role`, while admin tokens contain
+- **Auth Interceptors:** Implement Axios interceptors to automatically attach the JWT token. The interceptor reads
+  the token via `useAuthStore.getState().token` (no React binding, no circular import). On `401`, the response
+  interceptor calls `useAuthStore.getState().logout()` for a silent global session clear.
+- **Token Decoding:** Store tokens contain `storeId`, `userId`, `role`, while admin tokens contain
   `adminId`, `role`. Never send `storeId` in admin API requests.
 - **Error Handling:** Map backend HTTP statuses and `error` codes (e.g., 401 `invalid_credentials`, 403
-  `store_inactive`, 409 `conflict`, 404 `store_not_found`) to user-friendly toast notifications or UI states.
+  `store_inactive`, 409 `conflict`, 404 `store_not_found`, 400 `validation_failed`) to user-friendly UI states via
+  the shared helper `mapAuthError(err)` from `src/features/auth/utils/errorMessages.ts`. Extend the
+  `AUTH_ERROR_MESSAGES` map (or create a per-feature map following the same shape) for new error codes.
 - **No Business Logic Duplication:** Rely on the backend as the source of truth for calculations, taxes, and complex
   validations.
 
@@ -63,7 +79,26 @@ Follow a **Feature-Driven (Domain) Architecture** aligned with the backend modul
   hooks.
 - **Strict Typing:** No implicit anys. Enable strict mode in `tsconfig.json`.
 
-## 5. Expected Output Format
+## 5. Established Conventions (reuse, do not reinvent)
+
+The Auth module set the architectural precedent. Subsequent feature modules MUST reuse these primitives:
+
+- **Axios client:** `src/shared/api/api.ts` exports `apiClient`. All feature API services import this — do **not**
+  create per-feature Axios instances. Interceptors (auth header, 401 → logout) are already wired here.
+- **Auth session store:** `src/features/auth/store/authStore.ts` exports `useAuthStore` with shape
+  `{ token, user, isAuthenticated, setToken, logout }`. Read role/IDs via `useAuthStore((s) => s.user)`.
+- **Error mapping:** `src/features/auth/utils/errorMessages.ts` exports `mapAuthError(err)`. Other features may
+  define their own `mapXxxError` following the same `Record<errorCode, message>` + `axios.isAxiosError` pattern.
+- **Token utilities:** `src/features/auth/utils/token.ts` — `decodeToken`, `isExpired`, `toAuthUser`. Reuse for any
+  token-related logic; do not call `jwtDecode` directly elsewhere.
+- **Routing:** `src/routes/AppRouter.tsx` uses `createBrowserRouter` + `RouterProvider`. Add new routes here.
+  Public routes today: `/login`, `/admin/login`. Protected routes will be wrapped in a future `<RequireAuth>` guard.
+- **Feature folder layout:** `src/features/<domain>/{api,components,hooks,store,types,utils}`. Keep slices isolated;
+  cross-feature dependencies should go through `src/shared/`.
+- **Forms:** Use HTML5 native validation (`required`, `type="email"`, etc.) for the MVP. Promote to a validation
+  library only when a feature genuinely needs cross-field rules.
+
+## 6. Expected Output Format
 
 When generating code or proposing changes, you MUST provide your response in the following exact order:
 
