@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LayoutDashboard, LogOut, Menu, Store } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuthStore } from "../../../features/auth/store/authStore";
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+  `flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
     isActive
       ? "bg-slate-700 text-white"
       : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -15,6 +15,13 @@ export const AdminLayout = () => {
   const logout = useAuthStore((s) => s.logout);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const closeMenu = () => setIsMobileMenuOpen(false);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setIsMobileMenuOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isMobileMenuOpen]);
 
   return (
     <div className="flex min-h-screen">
@@ -52,7 +59,7 @@ export const AdminLayout = () => {
             onClick={() => setIsMobileMenuOpen((prev) => !prev)}
             aria-label="Toggle navigation menu"
             aria-expanded={isMobileMenuOpen}
-            className="flex items-center rounded-lg p-2 text-slate-600 hover:bg-slate-100 md:hidden"
+            className="flex items-center rounded-lg p-3 text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 md:hidden"
           >
             <Menu size={20} />
           </button>
@@ -60,7 +67,7 @@ export const AdminLayout = () => {
             <span className="text-sm text-slate-500">{user?.role}</span>
             <button
               onClick={logout}
-              className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
             >
               <LogOut size={16} />
               Logout

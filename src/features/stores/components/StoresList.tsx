@@ -22,6 +22,7 @@ export const StoresList = () => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,19 +47,20 @@ export const StoresList = () => {
   }, [load]);
 
   const onDelete = async (store: StoreResponse) => {
-    if (!confirm(`Cancel store "${store.name}"? This sets status to CANCELED.`)) return;
     try {
       await deleteStore(store.id);
+      setConfirmDeleteId(null);
       await load();
     } catch (err) {
       setError(mapStoresError(err));
+      setConfirmDeleteId(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
+    <div className="px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <header className="flex items-center justify-between gap-4">
+        <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-800 flex items-center justify-center">
               <StoreIcon className="w-5 h-5" />
@@ -70,7 +72,7 @@ export const StoresList = () => {
           </div>
           <Link
             to="/admin/stores/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-medium px-4 py-2 transition"
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-medium px-4 py-2.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
           >
             <Plus className="w-4 h-4" /> New store
           </Link>
@@ -87,7 +89,7 @@ export const StoresList = () => {
               setPage(0);
               setStatusFilter(e.target.value as StatusFilter);
             }}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
           >
             <option value="ALL">All</option>
             <option value="ACTIVE">Active</option>
@@ -106,7 +108,78 @@ export const StoresList = () => {
           </div>
         )}
 
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {/* Mobile card list — hidden on md+ */}
+        <ul className="space-y-3 md:hidden">
+          {loading && (
+            <li className="rounded-2xl border border-slate-200 bg-white px-4 py-12 text-center text-slate-400 shadow-sm">
+              Loading...
+            </li>
+          )}
+          {!loading && stores.length === 0 && (
+            <li className="rounded-2xl border border-slate-200 bg-white px-4 py-12 text-center text-slate-400 shadow-sm">
+              No stores found.
+            </li>
+          )}
+          {!loading &&
+            stores.map((s) => (
+              <li
+                key={s.id}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <p className="font-medium text-slate-900">{s.name}</p>
+                    <p className="font-mono text-xs text-slate-500">{s.code}</p>
+                  </div>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset shrink-0 ${STATUS_BADGE[s.status]}`}
+                  >
+                    {s.status}
+                  </span>
+                </div>
+
+                {confirmDeleteId === s.id ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                    <p className="flex-1 text-sm text-rose-700">Cancel this store?</p>
+                    <button
+                      type="button"
+                      onClick={() => void onDelete(s)}
+                      className="rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                    >
+                      Abort
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/admin/stores/${s.id}/edit`)}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                    >
+                      <Pencil className="w-4 h-4" /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(s.id)}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2.5 text-sm text-rose-700 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+        </ul>
+
+        {/* Desktop table — hidden on mobile */}
+        <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -136,40 +209,67 @@ export const StoresList = () => {
               )}
               {!loading &&
                 stores.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-mono text-xs text-slate-900">{s.code}</td>
-                    <td className="px-4 py-3 font-medium text-slate-900">{s.name}</td>
-                    <td className="px-4 py-3">{s.ownerName ?? "—"}</td>
-                    <td className="px-4 py-3">{s.whatsapp ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_BADGE[s.status]}`}
-                      >
-                        {s.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {new Date(s.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/admin/stores/${s.id}/edit`)}
-                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                  <>
+                    <tr key={s.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-mono text-xs text-slate-900">{s.code}</td>
+                      <td className="px-4 py-3 font-medium text-slate-900">{s.name}</td>
+                      <td className="px-4 py-3">{s.ownerName ?? "—"}</td>
+                      <td className="px-4 py-3">{s.whatsapp ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_BADGE[s.status]}`}
                         >
-                          <Pencil className="w-3.5 h-3.5" /> Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void onDelete(s)}
-                          className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-2 py-1 text-xs text-rose-700 hover:bg-rose-50"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                          {s.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-500">
+                        {new Date(s.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/stores/${s.id}/edit`)}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                          >
+                            <Pencil className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(s.id)}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-rose-200 bg-white px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {confirmDeleteId === s.id && (
+                      <tr key={`confirm-${s.id}`} className="bg-rose-50">
+                        <td colSpan={7} className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <p className="flex-1 text-sm text-rose-700">
+                              Cancel store &ldquo;{s.name}&rdquo;? This sets status to CANCELED.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void onDelete(s)}
+                              className="rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                            >
+                              Abort
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))}
             </tbody>
           </table>
@@ -182,17 +282,19 @@ export const StoresList = () => {
           <div className="flex gap-2">
             <button
               type="button"
+              aria-label="Go to previous page"
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0 || loading}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-md border border-slate-300 bg-white px-4 py-2.5 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
             >
               Prev
             </button>
             <button
               type="button"
+              aria-label="Go to next page"
               onClick={() => setPage((p) => p + 1)}
               disabled={page >= totalPages - 1 || loading}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-md border border-slate-300 bg-white px-4 py-2.5 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
             >
               Next
             </button>
