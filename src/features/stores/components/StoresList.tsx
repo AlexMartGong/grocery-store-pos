@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AlertCircle, Pencil, Plus, Store as StoreIcon, Trash2 } from "lucide-react";
+import { AlertCircle, Pencil, Plus, Store as StoreIcon, Trash2, UserPlus } from "lucide-react";
 import { deleteStore, getStores } from "../api/storesApi";
 import { mapStoresError } from "../utils/errorMessages";
 import type { StoreResponse, StoreStatus } from "../types";
@@ -157,18 +157,28 @@ export const StoresList = () => {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => navigate(`/admin/stores/${s.id}/edit`)}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                      className="flex-1 min-w-32 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                     >
                       <Pencil className="w-4 h-4" /> Edit
                     </button>
+                    {s.status !== "CANCELED" && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/admin/stores/${s.id}/provision-owner`)}
+                        aria-label={`Provision owner for ${s.name}`}
+                        className="flex-1 min-w-32 inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      >
+                        <UserPlus className="w-4 h-4" /> Provision owner
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setConfirmDeleteId(s.id)}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2.5 text-sm text-rose-700 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                      className="flex-1 min-w-32 inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2.5 text-sm text-rose-700 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                     >
                       <Trash2 className="w-4 h-4" /> Delete
                     </button>
@@ -234,6 +244,16 @@ export const StoresList = () => {
                           >
                             <Pencil className="w-3.5 h-3.5" /> Edit
                           </button>
+                          {s.status !== "CANCELED" && (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/admin/stores/${s.id}/provision-owner`)}
+                              aria-label={`Provision owner for ${s.name}`}
+                              className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-white px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" /> Owner
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setConfirmDeleteId(s.id)}
