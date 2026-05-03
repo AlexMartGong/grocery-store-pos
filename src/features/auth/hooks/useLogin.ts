@@ -27,7 +27,7 @@ export function useStoreLogin(): LoginState<LoginRequest> {
         setError("Received an invalid token. Please try again.");
         return;
       }
-      navigate("/", { replace: true });
+      navigate("/pos", { replace: true });
     } catch (err) {
       setError(mapAuthError(err));
     } finally {
@@ -54,7 +54,7 @@ export function useAdminLogin(): LoginState<AdminLoginRequest> {
         setError("Received an invalid token. Please try again.");
         return;
       }
-      navigate("/", { replace: true });
+      navigate("/admin/stores", { replace: true });
     } catch (err) {
       setError(mapAuthError(err));
     } finally {
