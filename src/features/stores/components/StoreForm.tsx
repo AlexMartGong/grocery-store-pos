@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type SyntheticEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AlertCircle, ArrowLeft, Save, Store as StoreIcon } from "lucide-react";
 import { createStore, getStoreById, updateStore } from "../api/storesApi";
@@ -57,7 +57,7 @@ export const StoreForm = () => {
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
@@ -88,17 +88,17 @@ export const StoreForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
+    <div className="px-4 py-8">
       <div className="mx-auto max-w-2xl space-y-6">
         <button
           type="button"
           onClick={() => navigate("/admin/stores")}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900"
+          className="inline-flex items-center gap-1.5 rounded text-sm text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
         >
           <ArrowLeft className="w-4 h-4" /> Back to stores
         </button>
 
-        <div className="bg-white rounded-2xl shadow-xl p-8 space-y-6">
+        <div className="bg-white rounded-2xl shadow-xl p-4 md:p-8 space-y-6">
           <header className="space-y-2">
             <div className="w-12 h-12 rounded-xl bg-slate-200 text-slate-800 flex items-center justify-center">
               <StoreIcon className="w-6 h-6" />
@@ -213,14 +213,14 @@ export const StoreForm = () => {
                 <button
                   type="button"
                   onClick={() => navigate("/admin/stores")}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex items-center gap-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-medium px-4 py-2 text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-medium px-4 py-2 text-sm transition disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
                 >
                   <Save className="w-4 h-4" />
                   {submitting ? "Saving..." : isEdit ? "Save changes" : "Create store"}

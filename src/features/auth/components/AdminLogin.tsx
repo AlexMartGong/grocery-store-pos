@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type SyntheticEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { AlertCircle, Lock, ShieldCheck, User } from "lucide-react";
 import { useAdminLogin } from "../hooks/useLogin";
@@ -8,7 +8,7 @@ export const AdminLogin = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const onSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     void submit({ username, password });
   };
@@ -77,7 +77,7 @@ interface FieldProps {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  icon: React.ReactNode;
+  icon: ReactNode;
   type?: string;
   autoComplete?: string;
 }
