@@ -54,7 +54,7 @@ export function useAdminLogin(): LoginState<AdminLoginRequest> {
         setError("Received an invalid token. Please try again.");
         return;
       }
-      navigate("/admin/stores", { replace: true });
+      navigate("/admin", { replace: true });
     } catch (err) {
       setError(mapAuthError(err));
     } finally {

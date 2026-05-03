@@ -1,8 +1,10 @@
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
 import { AdminLogin } from "../features/auth/components/AdminLogin";
+import { AdminDashboard } from "../features/admin/components/AdminDashboard";
 import { StoreLogin } from "../features/auth/components/StoreLogin";
 import { StoreForm } from "../features/stores/components/StoreForm";
 import { StoresList } from "../features/stores/components/StoresList";
+import { AdminLayout } from "../shared/components/layout/AdminLayout";
 import { AdminGuard } from "./guards/AdminGuard";
 
 const router = createBrowserRouter([
@@ -10,9 +12,9 @@ const router = createBrowserRouter([
   { path: "/admin/login", element: <AdminLogin /> },
   {
     path: "/admin",
-    element: <AdminGuard />,
+    element: <AdminGuard><AdminLayout /></AdminGuard>,
     children: [
-      { index: true, element: <Navigate to="stores" replace /> },
+      { index: true, element: <AdminDashboard /> },
       { path: "stores", element: <StoresList /> },
       { path: "stores/new", element: <StoreForm /> },
       { path: "stores/:id/edit", element: <StoreForm /> },
