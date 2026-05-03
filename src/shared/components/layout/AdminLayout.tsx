@@ -1,27 +1,12 @@
-import { useEffect, useState } from "react";
 import { LayoutDashboard, LogOut, Menu, Store } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuthStore } from "../../../features/auth/store/authStore";
-
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
-    isActive
-      ? "bg-slate-700 text-white"
-      : "text-slate-400 hover:bg-slate-800 hover:text-white"
-  }`;
+import { navLinkClass, useMobileMenu } from "../../hooks/useMobileMenu";
 
 export const AdminLayout = () => {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const closeMenu = () => setIsMobileMenuOpen(false);
-
-  useEffect(() => {
-    if (!isMobileMenuOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setIsMobileMenuOpen(false); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [isMobileMenuOpen]);
+  const { isMobileMenuOpen, setIsMobileMenuOpen, closeMenu } = useMobileMenu();
 
   return (
     <div className="flex min-h-screen">
