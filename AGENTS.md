@@ -122,9 +122,19 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
 - **Shared types:** `src/shared/types/index.ts` exports `PageResponse<T>`. Import from here for all paginated
   list responses — do not redefine it per feature.
 - **Error mapping:** `src/features/auth/utils/errorMessages.ts` exports `mapAuthError(err)`. Each feature defines
-  its own `mapXxxError` (e.g., `src/features/stores/utils/errorMessages.ts` → `mapStoresError`) following the
-  same `Record<errorCode, message>` + `axios.isAxiosError` shape. Never add unrelated error codes to another
+  its own `mapXxxError` (e.g., `src/features/stores/utils/errorMessages.ts` → `mapStoresError`;
+  `src/features/admin/utils/errorMessages.ts` → `mapAdminProvisioningError`) following the same
+  `Record<errorCode, message>` + `axios.isAxiosError` shape. Never add unrelated error codes to another
   feature's map.
+- **Field-level error state:** When a form submits to a backend endpoint that returns `400` with
+  `{ error: "validation_failed", fields: Record<string, string> }`, capture field errors in a separate
+  `const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})` state. In the catch block:
+  `if (axios.isAxiosError<ApiErrorResponse>(err) && err.response?.data?.fields) setFieldErrors(err.response.data.fields)`.
+  The backend `Map<String, String>` arrives as `Record<string, string>` — no transformation needed. Always
+  clear with `setFieldErrors({})` at the start of each submission. Render field errors inline below the
+  relevant `<input>` as `<p className="text-rose-500 text-sm mt-1">`. Use an `inputClass(hasError: boolean)`
+  helper to toggle `border-rose-500 focus:border-rose-500 focus:ring-rose-300/40` vs the default border/ring.
+  Reference: `src/features/admin/components/ProvisionOwnerForm.tsx`.
 - **Token utilities:** `src/features/auth/utils/token.ts` — `decodeToken`, `isExpired`, `toAuthUser`. Reuse for any
   token-related logic; do not call `jwtDecode` directly elsewhere.
 - **Route guards:** `src/routes/guards/AdminGuard.tsx` guards `/admin/*` for `SUPER_ADMIN` only. It uses
@@ -140,6 +150,7 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
         - `/admin/stores` — StoresList
         - `/admin/stores/new` — StoreForm (create)
         - `/admin/stores/:id/edit` — StoreForm (edit)
+        - `/admin/stores/:id/provision-owner` — ProvisionOwnerForm (cold-start OWNER user)
     - `/pos` — Store POS placeholder (OWNER/CASHIER, guard pending)
     - `/` → redirect `/login` | `*` → redirect `/login`
 - **Feature folder layout:** `src/features/<domain>/{api,components,hooks,store,types,utils}`. Keep slices isolated;
@@ -160,6 +171,21 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
   Reference: `StoresList.tsx`.
 - **Escape key for drawers:** any slide-in panel that uses a boolean open state must attach a `keydown` listener inside
   a `useEffect` conditioned on the open state. Reference: `AdminLayout.tsx`.
+- **Admin provisioning pattern:** One-shot admin endpoints (e.g., cold-start user creation) belong in
+  `src/features/admin/api/` and `src/features/admin/utils/`, not in generic user CRUD modules. The endpoint
+  `POST /admin/stores/:storeId/users` is called via `provisionStoreOwner(storeId, data)` in
+  `src/features/admin/api/adminProvisioningApi.ts`. Shared user types (`UserRole`, `UserResponse`,
+  `CreateUserRequest`) live in `src/features/users/types/index.ts`; `UserRole` is re-exported from
+  `src/features/auth/types` to maintain a single source of truth.
+- **Preventive vs reactive UX for action buttons:** Only disable action buttons based on the resource's own
+  status field (e.g., `disabled={s.status === "CANCELED"}`). Never infer the state of a *different* entity
+  from a related field — e.g., `Store.ownerName` is a billing contact string, not an indicator of whether
+  an `OWNER` user exists in the `users` table. For business-rule conflicts (e.g., `store_owner_exists`),
+  rely on the backend 409 response and surface it in the form's error alert. Include an informative
+  `title` / `aria-label` on disabled buttons explaining why they are disabled.
+- **Regex `pattern` attribute safety:** When writing character classes in HTML `pattern` attributes or
+  JS `RegExp` strings, always place the hyphen at the start or end of the class to avoid ambiguous range
+  interpretation: use `[-a-zA-Z0-9._]`, never `[a-zA-Z0-9._-]`.
 
 ## 6. Expected Output Format
 
