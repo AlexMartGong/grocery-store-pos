@@ -54,7 +54,7 @@ export const AdminLayout = () => {
       </aside>
 
       <div className="flex flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between gap-4 border-b bg-white px-6">
+        <header className="flex h-16 items-center justify-between md:justify-end gap-4 border-b bg-white px-6">
           <button
             onClick={() => setIsMobileMenuOpen((prev) => !prev)}
             aria-label="Toggle navigation menu"
