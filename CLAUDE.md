@@ -50,27 +50,29 @@ Follow a **Feature-Driven (Domain) Architecture** aligned with the backend modul
   `.claude/skills/frontend-design`.
 - **Mobile-First & Responsiveness:** All layouts and components MUST be designed mobile-first using Tailwind CSS. Use
   `md:` and `lg:` prefixes to scale up for tablet and desktop views. Concrete rules:
-  - Feature page roots must NOT repeat `min-h-screen bg-slate-50` — `AdminLayout`'s `<main>` already provides it.
-    Start page wrappers with `px-4 py-8` only.
-  - Card/panel padding must use responsive progression: `p-4 md:p-8`, never a flat `p-8`.
-  - Action headers (title + CTA button) must use `flex flex-wrap` so they reflow on narrow screens.
-  - **Data tables:** wrap the table in `<div className="hidden md:block ...">` and add a `<ul className="... md:hidden">`
-    card list for mobile. Cards show essential fields only (code, name, status, actions); defer secondary columns
-    (owner, phone, date) to the desktop table.
-  - **Touch targets:** all standalone interactive elements must be at minimum `py-2.5` (≈44 px). Navigation links
-    (`NavLink`) must use at least `py-3`. Never use `py-1` or `py-1.5` on buttons.
+    - Feature page roots must NOT repeat `min-h-screen bg-slate-50` — `AdminLayout`'s `<main>` already provides it.
+      Start page wrappers with `px-4 py-8` only.
+    - Card/panel padding must use responsive progression: `p-4 md:p-8`, never a flat `p-8`.
+    - Action headers (title + CTA button) must use `flex flex-wrap` so they reflow on narrow screens.
+    - **Data tables:** wrap the table in `<div className="hidden md:block ...">` and add a
+      `<ul className="... md:hidden">`
+      card list for mobile. Cards show essential fields only (code, name, status, actions); defer secondary columns
+      (owner, phone, date) to the desktop table.
+    - **Touch targets:** all standalone interactive elements must be at minimum `py-2.5` (≈44 px). Navigation links
+      (`NavLink`) must use at least `py-3`. Never use `py-1` or `py-1.5` on buttons.
 - **Accessibility (a11y):** Strictly use semantic HTML (`<nav>`, `<main>`, `<aside>`, `<header>`). Always include
   appropriate ARIA attributes (`aria-label`, `aria-expanded`, `aria-hidden`) for interactive or collapsible elements
   (e.g., mobile menus, modals, dropdowns). Ensure components are keyboard navigable and maintain visible focus states.
   Concrete rules:
-  - Every button, link, and input must carry `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-<color>`
-    so keyboard users always see a visible focus indicator.
-  - Pagination controls must have descriptive `aria-label` values:
-    `aria-label="Go to previous page"` / `aria-label="Go to next page"`.
-  - **Never use `window.confirm()`** for destructive actions. Use an inline confirmation UI (an extra state key +
-    a confirmation row/card) so screen readers can announce the prompt and keyboard users can respond.
-  - Slide-in drawers (mobile sidebar) must close on `Escape` via a `useEffect` that attaches a `keydown` listener
-    only while the drawer is open, and cleans up on close or unmount.
+    - Every button, link, and input must carry
+      `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-<color>`
+      so keyboard users always see a visible focus indicator.
+    - Pagination controls must have descriptive `aria-label` values:
+      `aria-label="Go to previous page"` / `aria-label="Go to next page"`.
+    - **Never use `window.confirm()`** for destructive actions. Use an inline confirmation UI (an extra state key +
+      a confirmation row/card) so screen readers can announce the prompt and keyboard users can respond.
+    - Slide-in drawers (mobile sidebar) must close on `Escape` via a `useEffect` that attaches a `keydown` listener
+      only while the drawer is open, and cleans up on close or unmount.
 
 ### Integration and APIs (Axios)
 
@@ -103,6 +105,11 @@ Follow a **Feature-Driven (Domain) Architecture** aligned with the backend modul
 - **Single Responsibility:** Keep components small. If a component exceeds 150-200 lines, extract its logic into custom
   hooks.
 - **Strict Typing:** No implicit anys. Enable strict mode in `tsconfig.json`.
+- **Modern React 19 Imports & Deprecation Checks:** Always verify that imported types, variables, and hooks are not
+  deprecated. Do not use namespace imports for React types (AVOID `icon: React.ReactNode;`). Strictly use named imports
+  directly from React (e.g., `import { ReactNode, SyntheticEvent } from 'react';`). **Crucial for Forms:** The
+  `FormEvent` type is inaccurate/deprecated for native events in React 19; for form submissions (`onSubmit`), you MUST
+  use `SyntheticEvent` (e.g., `e: SyntheticEvent<HTMLFormElement, SubmitEvent>`) instead of `FormEvent`.
 
 ## 5. Established Conventions (reuse, do not reinvent)
 
@@ -142,9 +149,11 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
 - **DTO immutability:** Some backend fields are immutable post-create (e.g., `Store.code`). Reflect this in
   TypeScript by excluding them from `UpdateXxxRequest` types, and render those fields as `disabled` in edit forms
   with a visible "cannot be changed" hint.
-- **Layout nesting:** `AdminLayout` (`src/shared/components/layout/AdminLayout.tsx`) renders `<main className="flex-1 bg-slate-50 p-6 md:p-8">`.
+- **Layout nesting:** `AdminLayout` (`src/shared/components/layout/AdminLayout.tsx`) renders
+  `<main className="flex-1 bg-slate-50 p-6 md:p-8">`.
   Feature pages rendered inside it must NOT add their own `min-h-screen` or `bg-slate-50`. Page root div: `px-4 py-8`.
-- **Responsive data tables:** data-heavy list pages use a two-view pattern — `<div className="hidden md:block ..."><table>` for
+- **Responsive data tables:** data-heavy list pages use a two-view pattern —
+  `<div className="hidden md:block ..."><table>` for
   desktop and `<ul className="md:hidden ...">` of `<li>` cards for mobile. Reference: `StoresList.tsx`.
 - **Inline destructive confirmation:** replace `window.confirm()` with local state (`confirmDeleteId: string | null`).
   Render a confirmation row (table) or section (card) in-place. Confirm + Abort buttons must meet touch-target rules.
