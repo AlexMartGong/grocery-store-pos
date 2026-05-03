@@ -42,7 +42,10 @@ Follow a **Feature-Driven (Domain) Architecture** aligned with the backend modul
   state (e.g., Current POS Cart, Authenticated User Session, Theme).
 - **Persistence:** When a Zustand slice must survive reload (e.g., auth session), use the `persist` middleware with
   `partialize` to whitelist only the persisted keys. Re-validate derived flags (e.g., `isAuthenticated`,
-  token expiry) inside `onRehydrateStorage` — never trust the persisted flag directly.
+  token expiry) inside `onRehydrateStorage` — never trust the persisted flag directly. **Additionally**, always
+  reassign `state.user = toAuthUser(decoded, state.user?.username ?? "")` inside `onRehydrateStorage` after a
+  successful decode, so stale persisted payloads (e.g., from a previous type shape) are normalized on rehydrate.
+  Reference: `src/features/auth/store/authStore.ts`.
 - **Styling:** Use Tailwind CSS v4. Do **NOT** create or look for a `tailwind.config.js` file. All configuration and
   custom variables must go into `src/index.css`.
 - **Icons:** Use `lucide-react` for iconography.
@@ -82,15 +85,18 @@ Follow a **Feature-Driven (Domain) Architecture** aligned with the backend modul
 - **Auth endpoints:** `POST /auth/login` (store users, body `{ storeCode, username, password }`) and
   `POST /admin/login` (SaaS admins, body `{ username, password }`).
 - **storeCode vs storeId:** The store login *request body* uses `storeCode` (string, e.g., `"STORE001"`).
-  The decoded JWT *claims* use `storeId` (number) plus `userId`, `role`, `sub`, `iss`, `iat`, `exp`. Do not confuse
-  the two: never send `storeId` to login, never send `storeCode` to authenticated endpoints.
+  The decoded JWT *claims* use `storeId` (UUID **string**) plus `userId` (UUID **string**), `role`, `sub`, `iss`,
+  `iat`, `exp`. Do not confuse the two: never send `storeId` to login, never send `storeCode` to authenticated
+  endpoints. **Do NOT type `storeId`/`userId`/`adminId` as `number`** — the backend emits them via
+  `uuid.toString()`.
 - **TypeScript DTOs:** Never use `any`. Always define strict TypeScript `interfaces` or `types` that perfectly match the
   backend DTOs (`PageResponse<T>`, `ErrorResponse`, etc.).
 - **Auth Interceptors:** Implement Axios interceptors to automatically attach the JWT token. The interceptor reads
   the token via `useAuthStore.getState().token` (no React binding, no circular import). On `401`, the response
   interceptor calls `useAuthStore.getState().logout()` for a silent global session clear.
-- **Token Decoding:** Store tokens contain `storeId`, `userId`, `role`, while admin tokens contain
-  `adminId`, `role`. Never send `storeId` in admin API requests.
+- **Token Decoding:** Store tokens contain `storeId` (UUID string), `userId` (UUID string), `role`; admin tokens
+  contain `adminId` (UUID string), `role`. Never send `storeId` in admin API requests. `DecodedToken` and `AuthUser`
+  in `src/features/auth/types/index.ts` type these as `?: string`.
 - **Error Handling:** Map backend HTTP statuses and `error` codes to user-friendly UI states. Common codes:
   `invalid_credentials`, `store_inactive`, `store_not_found`, `validation_failed` (auth); `store_code_taken`
   (stores conflict — not the generic `conflict` code). Use `mapAuthError(err)` from
@@ -122,10 +128,12 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
 - **Shared types:** `src/shared/types/index.ts` exports `PageResponse<T>`. Import from here for all paginated
   list responses — do not redefine it per feature.
 - **Error mapping:** `src/features/auth/utils/errorMessages.ts` exports `mapAuthError(err)`. Each feature defines
-  its own `mapXxxError` (e.g., `src/features/stores/utils/errorMessages.ts` → `mapStoresError`;
-  `src/features/admin/utils/errorMessages.ts` → `mapAdminProvisioningError`) following the same
-  `Record<errorCode, message>` + `axios.isAxiosError` shape. Never add unrelated error codes to another
-  feature's map.
+  its own `mapXxxError` following the same `Record<errorCode, message>` + `axios.isAxiosError` shape:
+    - `mapStoresError` — `src/features/stores/utils/errorMessages.ts`
+    - `mapAdminProvisioningError` — `src/features/admin/utils/errorMessages.ts`
+    - `mapUsersError` — `src/features/users/utils/errorMessages.ts` (codes: `username_taken`, `user_not_found`,
+      `validation_failed`, `forbidden`)
+      Never add unrelated error codes to another feature's map.
 - **Field-level error state:** When a form submits to a backend endpoint that returns `400` with
   `{ error: "validation_failed", fields: Record<string, string> }`, capture field errors in a separate
   `const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})` state. In the catch block:
@@ -137,40 +145,55 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
   Reference: `src/features/admin/components/ProvisionOwnerForm.tsx`.
 - **Token utilities:** `src/features/auth/utils/token.ts` — `decodeToken`, `isExpired`, `toAuthUser`. Reuse for any
   token-related logic; do not call `jwtDecode` directly elsewhere.
-- **Route guards:** `src/routes/guards/AdminGuard.tsx` guards `/admin/*` for `SUPER_ADMIN` only. It uses
-  `<Outlet />` for nested children. Pattern: read `isAuthenticated` + `user.role` from `useAuthStore`, return
-  `<Navigate replace>` on failure. Create additional guards following this pattern (e.g., `StoreGuard` for
-  `OWNER`/`CASHIER`). **Never** use `useEffect + navigate` for auth redirects — use synchronous `<Navigate>`.
+- **Route guards:** Three guards exist in `src/routes/guards/`:
+    - `AdminGuard` — `SUPER_ADMIN` only; unauthenticated → `/admin/login`, wrong role → `/login`.
+    - `StoreGuard` — `OWNER` or `CASHIER`; anything else → `/login`. Accepts optional `children` prop to wrap a
+      layout element (mirrors `AdminGuard`).
+    - `OwnerGuard` — `OWNER` only; CASHIER → `/pos` (they are authenticated, just not authorized for this section);
+      unauthenticated or other → `/login`. Used as a layout route (no `children` prop, renders `<Outlet />`).
+      Pattern: read `isAuthenticated` + `user.role` from `useAuthStore`, return `<Navigate replace>` synchronously on
+      failure. **Never** use `useEffect + navigate` for auth redirects.
 - **Post-login navigation:** Redirect targets live in hooks (`src/features/auth/hooks/useLogin.ts`), not in
   components. `useAdminLogin` → `/admin/stores`. `useStoreLogin` → `/pos`.
 - **Routing:** `src/routes/AppRouter.tsx` uses `createBrowserRouter` + `RouterProvider`. Current route map:
     - `/login` — StoreLogin (public)
     - `/admin/login` — AdminLogin (public)
-    - `/admin` — AdminGuard (SUPER_ADMIN)
+    - `/admin` — AdminGuard → AdminLayout (SUPER_ADMIN)
         - `/admin/stores` — StoresList
         - `/admin/stores/new` — StoreForm (create)
         - `/admin/stores/:id/edit` — StoreForm (edit)
         - `/admin/stores/:id/provision-owner` — ProvisionOwnerForm (cold-start OWNER user)
-    - `/pos` — Store POS placeholder (OWNER/CASHIER, guard pending)
+    - `/pos` — StoreGuard → StoreLayout (OWNER / CASHIER)
+        - `/pos` (index) — PosPlaceholder
+        - OwnerGuard (layout route, OWNER only)
+            - `/pos/users` — UsersList
+            - `/pos/users/new` — UserForm (create)
+            - `/pos/users/:id/edit` — UserForm (edit)
     - `/` → redirect `/login` | `*` → redirect `/login`
 - **Feature folder layout:** `src/features/<domain>/{api,components,hooks,store,types,utils}`. Keep slices isolated;
   cross-feature dependencies should go through `src/shared/`.
 - **Forms:** Use HTML5 native validation (`required`, `type="email"`, `pattern`, `maxLength`, etc.) for the MVP.
   Promote to a validation library only when a feature genuinely needs cross-field rules.
-- **DTO immutability:** Some backend fields are immutable post-create (e.g., `Store.code`). Reflect this in
-  TypeScript by excluding them from `UpdateXxxRequest` types, and render those fields as `disabled` in edit forms
-  with a visible "cannot be changed" hint.
-- **Layout nesting:** `AdminLayout` (`src/shared/components/layout/AdminLayout.tsx`) renders
-  `<main className="flex-1 bg-slate-50 p-6 md:p-8">`.
-  Feature pages rendered inside it must NOT add their own `min-h-screen` or `bg-slate-50`. Page root div: `px-4 py-8`.
+- **DTO immutability & minimal surface:** Some backend fields are immutable post-create (e.g., `Store.code`,
+  `User.username`). Exclude them from `UpdateXxxRequest` types and render them `disabled` in edit forms with a
+  visible "cannot be changed" hint. Additionally, keep `UpdateXxxRequest` to the minimum surface required by the
+  current UI — backend may accept more optional fields (e.g., `password`, `active` on `UpdateUserRequest`) that are
+  intentionally out of scope for a given flow; document the omission with a one-line comment in the types file so
+  future developers do not reinvent it.
+- **Layout nesting:** Both `AdminLayout` and `StoreLayout` (in `src/shared/components/layout/`) render
+  `<main className="flex-1 bg-slate-50 p-6 md:p-8">`. Feature pages rendered inside either must NOT add their own
+  `min-h-screen` or `bg-slate-50`. Page root div: `<div className="px-4 py-8">`.
 - **Responsive data tables:** data-heavy list pages use a two-view pattern —
   `<div className="hidden md:block ..."><table>` for
   desktop and `<ul className="md:hidden ...">` of `<li>` cards for mobile. Reference: `StoresList.tsx`.
 - **Inline destructive confirmation:** replace `window.confirm()` with local state (`confirmDeleteId: string | null`).
   Render a confirmation row (table) or section (card) in-place. Confirm + Abort buttons must meet touch-target rules.
   Reference: `StoresList.tsx`.
-- **Escape key for drawers:** any slide-in panel that uses a boolean open state must attach a `keydown` listener inside
-  a `useEffect` conditioned on the open state. Reference: `AdminLayout.tsx`.
+- **Mobile menu / drawer shared hook:** `src/shared/hooks/useMobileMenu.ts` exports `useMobileMenu()` (returns
+  `{ isMobileMenuOpen, setIsMobileMenuOpen, closeMenu }`) and `navLinkClass` (sidebar active/inactive CSS helper).
+  Any layout that has a slide-in sidebar **must** use this hook — do not inline the `useState` + `useEffect` again.
+  The hook attaches a `keydown` listener only while the drawer is open and cleans up on close/unmount (Escape closes
+  it). Reference: `AdminLayout.tsx`, `StoreLayout.tsx`.
 - **Admin provisioning pattern:** One-shot admin endpoints (e.g., cold-start user creation) belong in
   `src/features/admin/api/` and `src/features/admin/utils/`, not in generic user CRUD modules. The endpoint
   `POST /admin/stores/:storeId/users` is called via `provisionStoreOwner(storeId, data)` in
@@ -186,6 +209,10 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
 - **Regex `pattern` attribute safety:** When writing character classes in HTML `pattern` attributes or
   JS `RegExp` strings, always place the hyphen at the start or end of the class to avoid ambiguous range
   interpretation: use `[-a-zA-Z0-9._]`, never `[a-zA-Z0-9._-]`.
+- **Self-action protection (hide, not disable):** When a list allows deleting or deactivating a resource that
+  could be the currently logged-in user, **hide** the destructive action button entirely on that row — do not
+  disable it. Compare `resource.id === useAuthStore((s) => s.user?.userId)` (string equality after the UUID fix).
+  Reference: `src/features/users/components/UsersList.tsx`.
 
 ## 6. Expected Output Format
 
