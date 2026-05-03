@@ -4,7 +4,7 @@ import type { ApiErrorResponse } from "../../auth/types";
 export const ADMIN_PROVISIONING_ERROR_MESSAGES: Record<string, string> = {
   username_taken: "That username is already in use.",
   store_not_active: "The store is not active. Activate it before provisioning an owner.",
-  store_owner_exists: "This store already has an owner.",
+  store_owner_exists: "This store already has an active owner assigned.",
   store_not_found: "Store not found.",
   validation_failed: "Please check the highlighted fields and try again.",
   forbidden: "You don't have permission for this action.",

@@ -168,9 +168,11 @@ export const StoresList = () => {
                     {s.status !== "CANCELED" && (
                       <button
                         type="button"
+                        disabled={Boolean(s.ownerName)}
+                        title={s.ownerName ? "Owner already assigned" : `Provision owner for ${s.name}`}
                         onClick={() => navigate(`/admin/stores/${s.id}/provision-owner`)}
-                        aria-label={`Provision owner for ${s.name}`}
-                        className="flex-1 min-w-32 inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                        aria-label={s.ownerName ? "Owner already assigned" : `Provision owner for ${s.name}`}
+                        className="flex-1 min-w-32 inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
                       >
                         <UserPlus className="w-4 h-4" /> Provision owner
                       </button>
@@ -223,7 +225,11 @@ export const StoresList = () => {
                     <tr key={s.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-mono text-xs text-slate-900">{s.code}</td>
                       <td className="px-4 py-3 font-medium text-slate-900">{s.name}</td>
-                      <td className="px-4 py-3">{s.ownerName ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        {s.ownerName ?? (
+                          <span className="italic text-slate-400">No owner yet</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">{s.whatsapp ?? "—"}</td>
                       <td className="px-4 py-3">
                         <span
@@ -247,9 +253,11 @@ export const StoresList = () => {
                           {s.status !== "CANCELED" && (
                             <button
                               type="button"
+                              disabled={Boolean(s.ownerName)}
+                              title={s.ownerName ? "Owner already assigned" : `Provision owner for ${s.name}`}
                               onClick={() => navigate(`/admin/stores/${s.id}/provision-owner`)}
-                              aria-label={`Provision owner for ${s.name}`}
-                              className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-white px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                              aria-label={s.ownerName ? "Owner already assigned" : `Provision owner for ${s.name}`}
+                              className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-white px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
                             >
                               <UserPlus className="w-3.5 h-3.5" /> Owner
                             </button>
