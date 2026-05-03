@@ -48,6 +48,12 @@ Follow a **Feature-Driven (Domain) Architecture** aligned with the backend modul
 - **Icons:** Use `lucide-react` for iconography.
 - **Design System:** Strictly follow the design rules and component guidelines defined in the project's local skill:
   `.claude/skills/frontend-design`.
+- **Mobile-First & Responsiveness:** All layouts and components MUST be designed mobile-first using Tailwind CSS. Use
+  `md:` and `lg:` prefixes to scale up for tablet and desktop views. Ensure interactive elements have adequate touch
+  targets for mobile devices.
+- **Accessibility (a11y):** Strictly use semantic HTML (`<nav>`, `<main>`, `<aside>`, `<header>`). Always include
+  appropriate ARIA attributes (`aria-label`, `aria-expanded`, `aria-hidden`) for interactive or collapsible elements
+  (e.g., mobile menus, modals, dropdowns). Ensure components are keyboard navigable and maintain visible focus states.
 
 ### Integration and APIs (Axios)
 
@@ -104,14 +110,14 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
 - **Post-login navigation:** Redirect targets live in hooks (`src/features/auth/hooks/useLogin.ts`), not in
   components. `useAdminLogin` → `/admin/stores`. `useStoreLogin` → `/pos`.
 - **Routing:** `src/routes/AppRouter.tsx` uses `createBrowserRouter` + `RouterProvider`. Current route map:
-  - `/login` — StoreLogin (public)
-  - `/admin/login` — AdminLogin (public)
-  - `/admin` — AdminGuard (SUPER_ADMIN)
-    - `/admin/stores` — StoresList
-    - `/admin/stores/new` — StoreForm (create)
-    - `/admin/stores/:id/edit` — StoreForm (edit)
-  - `/pos` — Store POS placeholder (OWNER/CASHIER, guard pending)
-  - `/` → redirect `/login` | `*` → redirect `/login`
+    - `/login` — StoreLogin (public)
+    - `/admin/login` — AdminLogin (public)
+    - `/admin` — AdminGuard (SUPER_ADMIN)
+        - `/admin/stores` — StoresList
+        - `/admin/stores/new` — StoreForm (create)
+        - `/admin/stores/:id/edit` — StoreForm (edit)
+    - `/pos` — Store POS placeholder (OWNER/CASHIER, guard pending)
+    - `/` → redirect `/login` | `*` → redirect `/login`
 - **Feature folder layout:** `src/features/<domain>/{api,components,hooks,store,types,utils}`. Keep slices isolated;
   cross-feature dependencies should go through `src/shared/`.
 - **Forms:** Use HTML5 native validation (`required`, `type="email"`, `pattern`, `maxLength`, etc.) for the MVP.
