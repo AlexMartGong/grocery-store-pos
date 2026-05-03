@@ -44,6 +44,7 @@ export const useAuthStore = create<AuthState>()(
           state.isAuthenticated = false;
           return;
         }
+        state.user = toAuthUser(decoded, state.user?.username ?? "");
         state.isAuthenticated = true;
       },
     },

@@ -29,15 +29,15 @@ export interface DecodedToken {
   iat: number;
   exp: number;
   role: UserRole;
-  storeId?: number;
-  userId?: number;
-  adminId?: number;
+  storeId?: string;
+  userId?: string;
+  adminId?: string;
 }
 
 export interface AuthUser {
   role: UserRole;
   username: string;
-  storeId?: number;
-  userId?: number;
-  adminId?: number;
+  storeId?: string;
+  userId?: string;
+  adminId?: string;
 }
