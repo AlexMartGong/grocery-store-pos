@@ -66,10 +66,12 @@ Follow a **Feature-Driven (Domain) Architecture** aligned with the backend modul
   interceptor calls `useAuthStore.getState().logout()` for a silent global session clear.
 - **Token Decoding:** Store tokens contain `storeId`, `userId`, `role`, while admin tokens contain
   `adminId`, `role`. Never send `storeId` in admin API requests.
-- **Error Handling:** Map backend HTTP statuses and `error` codes (e.g., 401 `invalid_credentials`, 403
-  `store_inactive`, 409 `conflict`, 404 `store_not_found`, 400 `validation_failed`) to user-friendly UI states via
-  the shared helper `mapAuthError(err)` from `src/features/auth/utils/errorMessages.ts`. Extend the
-  `AUTH_ERROR_MESSAGES` map (or create a per-feature map following the same shape) for new error codes.
+- **Error Handling:** Map backend HTTP statuses and `error` codes to user-friendly UI states. Common codes:
+  `invalid_credentials`, `store_inactive`, `store_not_found`, `validation_failed` (auth); `store_code_taken`
+  (stores conflict — not the generic `conflict` code). Use `mapAuthError(err)` from
+  `src/features/auth/utils/errorMessages.ts` for auth flows. For other features, create a per-feature
+  `mapXxxError` following the same `Record<errorCode, message>` + `axios.isAxiosError` shape (see
+  `src/features/stores/utils/errorMessages.ts` as the reference implementation).
 - **No Business Logic Duplication:** Rely on the backend as the source of truth for calculations, taxes, and complex
   validations.
 
@@ -81,22 +83,42 @@ Follow a **Feature-Driven (Domain) Architecture** aligned with the backend modul
 
 ## 5. Established Conventions (reuse, do not reinvent)
 
-The Auth module set the architectural precedent. Subsequent feature modules MUST reuse these primitives:
+The `auth` and `stores` modules set the architectural precedent. Subsequent feature modules MUST reuse these primitives:
 
 - **Axios client:** `src/shared/api/api.ts` exports `apiClient`. All feature API services import this — do **not**
   create per-feature Axios instances. Interceptors (auth header, 401 → logout) are already wired here.
 - **Auth session store:** `src/features/auth/store/authStore.ts` exports `useAuthStore` with shape
   `{ token, user, isAuthenticated, setToken, logout }`. Read role/IDs via `useAuthStore((s) => s.user)`.
-- **Error mapping:** `src/features/auth/utils/errorMessages.ts` exports `mapAuthError(err)`. Other features may
-  define their own `mapXxxError` following the same `Record<errorCode, message>` + `axios.isAxiosError` pattern.
+- **Shared types:** `src/shared/types/index.ts` exports `PageResponse<T>`. Import from here for all paginated
+  list responses — do not redefine it per feature.
+- **Error mapping:** `src/features/auth/utils/errorMessages.ts` exports `mapAuthError(err)`. Each feature defines
+  its own `mapXxxError` (e.g., `src/features/stores/utils/errorMessages.ts` → `mapStoresError`) following the
+  same `Record<errorCode, message>` + `axios.isAxiosError` shape. Never add unrelated error codes to another
+  feature's map.
 - **Token utilities:** `src/features/auth/utils/token.ts` — `decodeToken`, `isExpired`, `toAuthUser`. Reuse for any
   token-related logic; do not call `jwtDecode` directly elsewhere.
-- **Routing:** `src/routes/AppRouter.tsx` uses `createBrowserRouter` + `RouterProvider`. Add new routes here.
-  Public routes today: `/login`, `/admin/login`. Protected routes will be wrapped in a future `<RequireAuth>` guard.
+- **Route guards:** `src/routes/guards/AdminGuard.tsx` guards `/admin/*` for `SUPER_ADMIN` only. It uses
+  `<Outlet />` for nested children. Pattern: read `isAuthenticated` + `user.role` from `useAuthStore`, return
+  `<Navigate replace>` on failure. Create additional guards following this pattern (e.g., `StoreGuard` for
+  `OWNER`/`CASHIER`). **Never** use `useEffect + navigate` for auth redirects — use synchronous `<Navigate>`.
+- **Post-login navigation:** Redirect targets live in hooks (`src/features/auth/hooks/useLogin.ts`), not in
+  components. `useAdminLogin` → `/admin/stores`. `useStoreLogin` → `/pos`.
+- **Routing:** `src/routes/AppRouter.tsx` uses `createBrowserRouter` + `RouterProvider`. Current route map:
+  - `/login` — StoreLogin (public)
+  - `/admin/login` — AdminLogin (public)
+  - `/admin` — AdminGuard (SUPER_ADMIN)
+    - `/admin/stores` — StoresList
+    - `/admin/stores/new` — StoreForm (create)
+    - `/admin/stores/:id/edit` — StoreForm (edit)
+  - `/pos` — Store POS placeholder (OWNER/CASHIER, guard pending)
+  - `/` → redirect `/login` | `*` → redirect `/login`
 - **Feature folder layout:** `src/features/<domain>/{api,components,hooks,store,types,utils}`. Keep slices isolated;
   cross-feature dependencies should go through `src/shared/`.
-- **Forms:** Use HTML5 native validation (`required`, `type="email"`, etc.) for the MVP. Promote to a validation
-  library only when a feature genuinely needs cross-field rules.
+- **Forms:** Use HTML5 native validation (`required`, `type="email"`, `pattern`, `maxLength`, etc.) for the MVP.
+  Promote to a validation library only when a feature genuinely needs cross-field rules.
+- **DTO immutability:** Some backend fields are immutable post-create (e.g., `Store.code`). Reflect this in
+  TypeScript by excluding them from `UpdateXxxRequest` types, and render those fields as `disabled` in edit forms
+  with a visible "cannot be changed" hint.
 
 ## 6. Expected Output Format
 
