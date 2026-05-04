@@ -194,6 +194,23 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
   Any layout that has a slide-in sidebar **must** use this hook — do not inline the `useState` + `useEffect` again.
   The hook attaches a `keydown` listener only while the drawer is open and cleans up on close/unmount (Escape closes
   it). Reference: `AdminLayout.tsx`, `StoreLayout.tsx`.
+- **Debounce shared hook:** `src/shared/hooks/useDebounce.ts` exports `useDebounce<T>(value: T, delay: number): T`.
+  Use this for any debounced input (search bars, type-ahead). Do **not** inline `setTimeout` + `clearTimeout`
+  inside components or reinvent a per-feature debounce.
+- **List search pattern (remote vs local):** Paginated server-side lists (Stores, Products) use **remote**
+  search — debounce the input via `useDebounce(searchInput, 400)`, pass `debouncedSearch || undefined` as an
+  optional `search?: string` argument to the API method (which forwards it as the `search` query param), and
+  add `debouncedSearch` to the `useCallback` deps of `load`. Reset to page 0 with a dedicated
+  `useEffect(() => { setPage(0); }, [debouncedSearch])` so a query never lands on an out-of-range page.
+  Small/per-tenant lists (Users) use **local** filter — plain `useState` with no debounce, derive
+  `filteredUsers` before the `return`, swap **both** `users.map` calls AND empty-state `length === 0` checks
+  to the filtered array. UI: relative wrapper with absolutely-positioned `Search` icon (`aria-hidden`),
+  `<input type="search">` carrying an explicit `aria-label` and a placeholder that **names the searchable
+  fields** (e.g., `"Buscar por nombre o código..."`, `"Buscar por nombre o código de barras..."`,
+  `"Buscar por nombre o usuario..."`). Filter row container must be `flex flex-wrap items-center gap-3` so
+  the search input reflows on mobile; the input wrapper uses `relative flex-1 min-w-48`. Backend `search` is
+  case-insensitive substring against: store `name`+`code`, product `name`+`barcode`. References:
+  `StoresList.tsx`, `ProductsList.tsx` (remote); `UsersList.tsx` (local).
 - **Admin provisioning pattern:** One-shot admin endpoints (e.g., cold-start user creation) belong in
   `src/features/admin/api/` and `src/features/admin/utils/`, not in generic user CRUD modules. The endpoint
   `POST /admin/stores/:storeId/users` is called via `provisionStoreOwner(storeId, data)` in
