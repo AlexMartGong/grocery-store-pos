@@ -10,6 +10,8 @@ import { StoreLayout } from "../shared/components/layout/StoreLayout";
 import { PosPlaceholder } from "../features/pos/components/PosPlaceholder";
 import { UsersList } from "../features/users/components/UsersList";
 import { UserForm } from "../features/users/components/UserForm";
+import { ProductsList } from "../features/products/components/ProductsList";
+import { ProductForm } from "../features/products/components/ProductForm";
 import { AdminGuard } from "./guards/AdminGuard";
 import { StoreGuard } from "./guards/StoreGuard";
 import { OwnerGuard } from "./guards/OwnerGuard";
@@ -33,12 +35,15 @@ const router = createBrowserRouter([
     element: <StoreGuard><StoreLayout /></StoreGuard>,
     children: [
       { index: true, element: <PosPlaceholder /> },
+      { path: "products", element: <ProductsList /> },
       {
         element: <OwnerGuard />,
         children: [
           { path: "users", element: <UsersList /> },
           { path: "users/new", element: <UserForm /> },
           { path: "users/:id/edit", element: <UserForm /> },
+          { path: "products/new", element: <ProductForm /> },
+          { path: "products/:id/edit", element: <ProductForm /> },
         ],
       },
     ],
