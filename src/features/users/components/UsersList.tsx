@@ -1,12 +1,14 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AlertCircle, Pencil, Plus, Trash2, Users as UsersIcon } from "lucide-react";
+import { AlertCircle, Pencil, Plus, Search, Trash2, Users as UsersIcon } from "lucide-react";
 import { deleteUser, getUsers } from "../api/usersApi";
 import { mapUsersError } from "../utils/errorMessages";
 import { useAuthStore } from "../../auth/store/authStore";
 import type { UserResponse, UserRole } from "../types";
 
 const PAGE_SIZE = 10;
+type RoleFilter = "ALL" | UserRole;
+type ActiveFilter = "ALL" | "ACTIVE" | "INACTIVE";
 
 const ROLE_BADGE: Record<UserRole, string> = {
   OWNER: "bg-violet-100 text-violet-700 ring-violet-200",
@@ -23,6 +25,9 @@ export const UsersList = () => {
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("ALL");
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -31,7 +36,10 @@ export const UsersList = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getUsers(page, PAGE_SIZE);
+      const active =
+        activeFilter === "ALL" ? undefined : activeFilter === "ACTIVE";
+      const role = roleFilter === "ALL" ? undefined : roleFilter;
+      const data = await getUsers(page, PAGE_SIZE, active, role);
       setUsers(data.content);
       setTotalPages(data.totalPages);
     } catch (err) {
@@ -39,7 +47,7 @@ export const UsersList = () => {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, roleFilter, activeFilter]);
 
   useEffect(() => {
     void load();
@@ -57,6 +65,12 @@ export const UsersList = () => {
   };
 
   const isSelf = (u: UserResponse) => u.id === currentUserId;
+
+  const filteredUsers = users.filter(
+    (u) =>
+      u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.username.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
 
   return (
     <div className="px-4 py-8">
@@ -79,6 +93,55 @@ export const UsersList = () => {
           </Link>
         </header>
 
+        <div className="flex flex-wrap items-center gap-3">
+          <label htmlFor="roleFilter" className="text-sm text-slate-600">
+            Rol
+          </label>
+          <select
+            id="roleFilter"
+            value={roleFilter}
+            onChange={(e) => {
+              setPage(0);
+              setRoleFilter(e.target.value as RoleFilter);
+            }}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 md:py-2.5 text-sm text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
+          >
+            <option value="ALL">Todos</option>
+            <option value="OWNER">Dueños</option>
+            <option value="CASHIER">Cajeros</option>
+          </select>
+          <label htmlFor="activeFilter" className="text-sm text-slate-600">
+            Estado
+          </label>
+          <select
+            id="activeFilter"
+            value={activeFilter}
+            onChange={(e) => {
+              setPage(0);
+              setActiveFilter(e.target.value as ActiveFilter);
+            }}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 md:py-2.5 text-sm text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
+          >
+            <option value="ALL">Todos</option>
+            <option value="ACTIVE">Activos</option>
+            <option value="INACTIVE">Inactivos</option>
+          </select>
+          <div className="relative flex-1 min-w-48">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+            />
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nombre o usuario..."
+              aria-label="Buscar usuarios"
+              className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 md:py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
+            />
+          </div>
+        </div>
+
         {error && (
           <div
             role="alert"
@@ -96,13 +159,13 @@ export const UsersList = () => {
               Cargando...
             </li>
           )}
-          {!loading && users.length === 0 && (
+          {!loading && filteredUsers.length === 0 && (
             <li className="rounded-2xl border border-slate-200 bg-white px-4 py-12 text-center text-slate-400 shadow-sm">
               No hay usuarios.
             </li>
           )}
           {!loading &&
-            users.map((u) => (
+            filteredUsers.map((u) => (
               <li
                 key={u.id}
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm space-y-3"
@@ -193,7 +256,7 @@ export const UsersList = () => {
                   </td>
                 </tr>
               )}
-              {!loading && users.length === 0 && (
+              {!loading && filteredUsers.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
                     No hay usuarios.
@@ -201,7 +264,7 @@ export const UsersList = () => {
                 </tr>
               )}
               {!loading &&
-                users.map((u) => (
+                filteredUsers.map((u) => (
                   <Fragment key={u.id}>
                     <tr className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-mono text-xs text-slate-900">{u.username}</td>

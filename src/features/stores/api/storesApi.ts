@@ -11,9 +11,15 @@ export async function getStores(
   page = 0,
   size = 10,
   status?: StoreStatus,
+  search?: string,
 ): Promise<PageResponse<StoreResponse>> {
   const res = await apiClient.get<PageResponse<StoreResponse>>("/stores", {
-    params: { page, size, ...(status ? { status } : {}) },
+    params: {
+      page,
+      size,
+      ...(status ? { status } : {}),
+      ...(search ? { search } : {}),
+    },
   });
   return res.data;
 }

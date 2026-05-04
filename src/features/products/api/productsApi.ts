@@ -11,9 +11,15 @@ export async function getProducts(
   page = 0,
   size = 20,
   active?: boolean,
+  search?: string,
 ): Promise<PageResponse<ProductResponse>> {
   const res = await apiClient.get<PageResponse<ProductResponse>>("/products", {
-    params: { page, size, ...(active !== undefined ? { active } : {}) },
+    params: {
+      page,
+      size,
+      ...(active !== undefined ? { active } : {}),
+      ...(search ? { search } : {}),
+    },
   });
   return res.data;
 }

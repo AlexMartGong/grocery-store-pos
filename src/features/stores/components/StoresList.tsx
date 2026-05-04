@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AlertCircle, Pencil, Plus, Store as StoreIcon, Trash2, UserPlus } from "lucide-react";
+import { AlertCircle, Pencil, Plus, Search, Store as StoreIcon, Trash2, UserPlus } from "lucide-react";
 import { deleteStore, getStores } from "../api/storesApi";
 import { mapStoresError } from "../utils/errorMessages";
+import { useDebounce } from "../../../shared/hooks/useDebounce";
 import type { StoreResponse, StoreStatus } from "../types";
 
 const PAGE_SIZE = 10;
@@ -20,6 +21,8 @@ export const StoresList = () => {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebounce(searchInput, 400);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -32,6 +35,7 @@ export const StoresList = () => {
         page,
         PAGE_SIZE,
         statusFilter === "ALL" ? undefined : statusFilter,
+        debouncedSearch || undefined,
       );
       setStores(data.content);
       setTotalPages(data.totalPages);
@@ -40,7 +44,11 @@ export const StoresList = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter]);
+  }, [page, statusFilter, debouncedSearch]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearch]);
 
   useEffect(() => {
     void load();
@@ -78,7 +86,7 @@ export const StoresList = () => {
           </Link>
         </header>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <label htmlFor="statusFilter" className="text-sm text-slate-600">
             Status
           </label>
@@ -96,6 +104,20 @@ export const StoresList = () => {
             <option value="SUSPENDED">Suspended</option>
             <option value="CANCELED">Canceled</option>
           </select>
+          <div className="relative flex-1 min-w-48">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+            />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Buscar por nombre o código..."
+              aria-label="Buscar tiendas"
+              className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
+            />
+          </div>
         </div>
 
         {error && (

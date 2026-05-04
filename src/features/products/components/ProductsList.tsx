@@ -7,11 +7,13 @@ import {
   PackagePlus,
   Pencil,
   Plus,
+  Search,
   Trash2,
 } from "lucide-react";
 import { deleteProduct, getProducts } from "../api/productsApi";
 import { mapProductsError } from "../utils/errorMessages";
 import { useAuthStore } from "../../auth/store/authStore";
+import { useDebounce } from "../../../shared/hooks/useDebounce";
 import { QuickPriceModal } from "./QuickPriceModal";
 import { AdjustStockModal } from "./AdjustStockModal";
 import type { ProductResponse, UnitOfMeasure } from "../types";
@@ -69,6 +71,8 @@ export const ProductsList = () => {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("ACTIVE");
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebounce(searchInput, 400);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -81,7 +85,12 @@ export const ProductsList = () => {
     try {
       const active =
         activeFilter === "ALL" ? undefined : activeFilter === "ACTIVE";
-      const data = await getProducts(page, PAGE_SIZE, active);
+      const data = await getProducts(
+        page,
+        PAGE_SIZE,
+        active,
+        debouncedSearch || undefined,
+      );
       setProducts(data.content);
       setTotalPages(data.totalPages);
     } catch (err) {
@@ -89,7 +98,11 @@ export const ProductsList = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, activeFilter]);
+  }, [page, activeFilter, debouncedSearch]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearch]);
 
   useEffect(() => {
     void load();
@@ -129,7 +142,7 @@ export const ProductsList = () => {
           )}
         </header>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <label htmlFor="activeFilter" className="text-sm text-slate-600">
             Mostrar
           </label>
@@ -146,6 +159,20 @@ export const ProductsList = () => {
             <option value="INACTIVE">Inactivos</option>
             <option value="ALL">Todos</option>
           </select>
+          <div className="relative flex-1 min-w-48">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+            />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Buscar por nombre o código de barras..."
+              aria-label="Buscar productos"
+              className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
+            />
+          </div>
         </div>
 
         {error && (
