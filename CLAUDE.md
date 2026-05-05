@@ -133,6 +133,8 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
     - `mapAdminProvisioningError` — `src/features/admin/utils/errorMessages.ts`
     - `mapUsersError` — `src/features/users/utils/errorMessages.ts` (codes: `username_taken`, `user_not_found`,
       `validation_failed`, `forbidden`)
+    - `mapCustomersError` — `src/features/customers/utils/errorMessages.ts` (codes: `customer_not_found`,
+      `validation_failed`, `forbidden`)
       Never add unrelated error codes to another feature's map.
 - **Field-level error state:** When a form submits to a backend endpoint that returns `400` with
   `{ error: "validation_failed", fields: Record<string, string> }`, capture field errors in a separate
@@ -165,10 +167,16 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
         - `/admin/stores/:id/provision-owner` — ProvisionOwnerForm (cold-start OWNER user)
     - `/pos` — StoreGuard → StoreLayout (OWNER / CASHIER)
         - `/pos` (index) — PosPlaceholder
+        - `/pos/products` — ProductsList (OWNER + CASHIER read; OWNER-only writes nested under OwnerGuard)
+        - `/pos/customers` — CustomersList (OWNER + CASHIER read/write — both roles can CRUD)
+        - `/pos/customers/new` — CustomerForm (create)
+        - `/pos/customers/:id/edit` — CustomerForm (edit)
         - OwnerGuard (layout route, OWNER only)
             - `/pos/users` — UsersList
             - `/pos/users/new` — UserForm (create)
             - `/pos/users/:id/edit` — UserForm (edit)
+            - `/pos/products/new` — ProductForm (create)
+            - `/pos/products/:id/edit` — ProductForm (edit)
     - `/` → redirect `/login` | `*` → redirect `/login`
 - **Feature folder layout:** `src/features/<domain>/{api,components,hooks,store,types,utils}`. Keep slices isolated;
   cross-feature dependencies should go through `src/shared/`.
@@ -180,6 +188,23 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
   current UI — backend may accept more optional fields (e.g., `password`, `active` on `UpdateUserRequest`) that are
   intentionally out of scope for a given flow; document the omission with a one-line comment in the types file so
   future developers do not reinvent it.
+- **DTO field naming mirrors the wire format:** Match TypeScript field names to the JSON keys the backend
+  emits — do **NOT** introduce a camelCase ↔ snake_case translation layer. Backends with
+  `@JsonProperty(snake_case)` on their record DTOs (Products, Customers) must be mirrored with snake_case
+  keys in the matching TS `interface` (e.g., `full_name`, `credit_limit`, `outstanding_balance`,
+  `purchase_cost`). The `fields` map in `validation_failed` 400 responses uses the same snake_case keys, so
+  `fieldErrors.full_name` indexes directly without renaming. For backends that emit camelCase (Stores,
+  Users), keep camelCase in TS. Additionally, **derived/server-managed fields must be excluded from
+  `Create*` / `Update*` types** (e.g., `outstanding_balance` on `Customer` is mutated only by the
+  sales/payments flow — never present in the form, the state, or the DTO). References:
+  `src/features/customers/types/index.ts`, `src/features/products/types/index.ts`.
+- **BigDecimal as `string` in TS:** Backend monetary / decimal fields (`BigDecimal`) cross the wire as JSON
+  numbers but MUST be typed as `string` on the frontend to avoid float precision loss. Forms accept the
+  raw input as `string` and forward it unchanged in the request body — Jackson re-parses it back to
+  `BigDecimal` server-side. Format for display via `Intl.NumberFormat("es-MX", { style: "currency",
+  currency: "MXN" })` (helpers: `formatMoney` in `ProductsList.tsx` and `CustomersList.tsx`). Never call
+  `parseFloat` on these values for arithmetic that will be persisted; only convert with `Number()` for
+  display-only ratio checks (e.g., credit-usage thresholds).
 - **Layout nesting:** Both `AdminLayout` and `StoreLayout` (in `src/shared/components/layout/`) render
   `<main className="flex-1 bg-slate-50 p-6 md:p-8">`. Feature pages rendered inside either must NOT add their own
   `min-h-screen` or `bg-slate-50`. Page root div: `<div className="px-4 py-8">`.
@@ -189,6 +214,14 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
 - **Inline destructive confirmation:** replace `window.confirm()` with local state (`confirmDeleteId: string | null`).
   Render a confirmation row (table) or section (card) in-place. Confirm + Abort buttons must meet touch-target rules.
   Reference: `StoresList.tsx`.
+- **Threshold warning indicators (credit usage, low stock, etc.):** When a numeric value crosses a business
+  threshold relative to a related limit (e.g., `outstanding_balance >= 0.9 * credit_limit`,
+  `current_stock <= minimum_stock`), the visual cue MUST combine **color + weight + icon + accessible text**
+  — never color alone (WCAG 1.4.1). Pattern: `text-rose-600 font-semibold` on the value cell +
+  `<AlertTriangle aria-hidden className="inline w-4 h-4 mr-1" />` + a `title=` (or `aria-label` on a badge)
+  describing the condition. Always guard ratio computations against divide-by-zero before applying the rule
+  (`if (limit <= 0) return false`) so a customer without a credit line is never marked. References:
+  `CustomersList.tsx` (`isHighCredit`), `ProductsList.tsx` (`stockBadge`).
 - **Mobile menu / drawer shared hook:** `src/shared/hooks/useMobileMenu.ts` exports `useMobileMenu()` (returns
   `{ isMobileMenuOpen, setIsMobileMenuOpen, closeMenu }`) and `navLinkClass` (sidebar active/inactive CSS helper).
   Any layout that has a slide-in sidebar **must** use this hook — do not inline the `useState` + `useEffect` again.
@@ -197,20 +230,22 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
 - **Debounce shared hook:** `src/shared/hooks/useDebounce.ts` exports `useDebounce<T>(value: T, delay: number): T`.
   Use this for any debounced input (search bars, type-ahead). Do **not** inline `setTimeout` + `clearTimeout`
   inside components or reinvent a per-feature debounce.
-- **List search pattern (remote vs local):** Paginated server-side lists (Stores, Products) use **remote**
-  search — debounce the input via `useDebounce(searchInput, 400)`, pass `debouncedSearch || undefined` as an
-  optional `search?: string` argument to the API method (which forwards it as the `search` query param), and
-  add `debouncedSearch` to the `useCallback` deps of `load`. Reset to page 0 with a dedicated
-  `useEffect(() => { setPage(0); }, [debouncedSearch])` so a query never lands on an out-of-range page.
-  Small/per-tenant lists (Users) use **local** filter — plain `useState` with no debounce, derive
-  `filteredUsers` before the `return`, swap **both** `users.map` calls AND empty-state `length === 0` checks
-  to the filtered array. UI: relative wrapper with absolutely-positioned `Search` icon (`aria-hidden`),
-  `<input type="search">` carrying an explicit `aria-label` and a placeholder that **names the searchable
-  fields** (e.g., `"Buscar por nombre o código..."`, `"Buscar por nombre o código de barras..."`,
+- **List search pattern (remote vs local):** Paginated server-side lists (Stores, Products, Customers) use
+  **remote** search — debounce the input via `useDebounce(searchInput, 400)`, pass
+  `debouncedSearch || undefined` as an optional `search?: string` argument to the API method (which forwards
+  it as the `search` query param), and add `debouncedSearch` to the `useCallback` deps of `load`. Reset to
+  page 0 with a dedicated `useEffect(() => { setPage(0); }, [debouncedSearch])` so a query never lands on
+  an out-of-range page. Small/per-tenant lists (Users) use **local** filter — plain `useState` with no
+  debounce, derive `filteredUsers` before the `return`, swap **both** `users.map` calls AND empty-state
+  `length === 0` checks to the filtered array. UI: relative wrapper with absolutely-positioned `Search`
+  icon (`aria-hidden`), `<input type="search">` carrying an explicit `aria-label` and a placeholder that
+  **names the searchable fields** (e.g., `"Buscar por nombre o código..."`,
+  `"Buscar por nombre o código de barras..."`, `"Buscar por nombre o teléfono..."`,
   `"Buscar por nombre o usuario..."`). Filter row container must be `flex flex-wrap items-center gap-3` so
-  the search input reflows on mobile; the input wrapper uses `relative flex-1 min-w-48`. Backend `search` is
-  case-insensitive substring against: store `name`+`code`, product `name`+`barcode`. References:
-  `StoresList.tsx`, `ProductsList.tsx` (remote); `UsersList.tsx` (local).
+  the search input reflows on mobile; the input wrapper uses `relative flex-1 min-w-48`. Backend `search`
+  is case-insensitive substring against: store `name`+`code`, product `name`+`barcode`, customer
+  `full_name`+`phone`. References: `StoresList.tsx`, `ProductsList.tsx`, `CustomersList.tsx` (remote);
+  `UsersList.tsx` (local).
 - **Admin provisioning pattern:** One-shot admin endpoints (e.g., cold-start user creation) belong in
   `src/features/admin/api/` and `src/features/admin/utils/`, not in generic user CRUD modules. The endpoint
   `POST /admin/stores/:storeId/users` is called via `provisionStoreOwner(storeId, data)` in
@@ -230,6 +265,17 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
   could be the currently logged-in user, **hide** the destructive action button entirely on that row — do not
   disable it. Compare `resource.id === useAuthStore((s) => s.user?.userId)` (string equality after the UUID fix).
   Reference: `src/features/users/components/UsersList.tsx`.
+- **Hide actions already in target state:** Soft-delete endpoints (e.g., `DELETE /customers/:id` flips
+  `active=false`) are idempotent on the backend; rendering a disabled "Desactivar" button on a row that is
+  already inactive pollutes the UI with unactionable controls. Pattern: gate the action with
+  `{c.active && (<button …>Desactivar</button>)}` rather than `disabled={!c.active}`. The Edit button stays
+  visible because data correction (and eventually reactivation) is still useful on inactive rows.
+  Reference: `src/features/customers/components/CustomersList.tsx`.
+- **Distinct sidebar icons per nav target:** Every `NavLink` in a layout sidebar must use a **visually
+  distinct** lucide icon. Reusing the same glyph for two destinations (e.g., `Users` for both staff and
+  customers) creates ambiguity for OWNER who sees both links. Current assignments in `StoreLayout.tsx`:
+  `ShoppingCart` → POS, `Package` → Productos, `UserRound` → Clientes, `Users` → Usuarios (staff). When
+  adding a new nav target, pick a glyph not already in the current sidebar.
 
 ## 6. Expected Output Format
 

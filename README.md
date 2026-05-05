@@ -1,73 +1,132 @@
-# React + TypeScript + Vite
+# Grocery Store POS — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Multi-tenant Point-of-Sale SPA for the `grocery-store` SaaS. Talks to the Spring Boot 4 backend over JWT-authenticated
+REST.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 19** + **TypeScript 6** via **Vite 8** (Oxc-powered `@vitejs/plugin-react`)
+- **Tailwind CSS v4** (CSS-first engine — all customization in `src/index.css`, no `tailwind.config.js`)
+- **Zustand 5** for global state (auth session, future POS cart) with `persist` middleware
+- **React Router DOM v7** (`createBrowserRouter` + `RouterProvider`)
+- **Axios** with shared `apiClient` (auth-header interceptor, `401 → logout`)
+- **lucide-react** for iconography
 
-## React Compiler
+## Requirements
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Node ≥ 20
+- [pnpm](https://pnpm.io/) ≥ 9
+- The `grocery-store` Spring Boot backend running locally on `http://localhost:8080` (or any URL
+  exposed via `VITE_API_URL`)
 
-## Expanding the ESLint configuration
+## Setup
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm install
+cp .env.example .env   # then edit VITE_API_URL if backend is not on :8080
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The dev server runs at `http://localhost:5173` and proxies API calls to `${VITE_API_URL}/api/v1`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Command        | What it does                                        |
+|----------------|-----------------------------------------------------|
+| `pnpm dev`     | Vite dev server with HMR (use `--host` to expose)   |
+| `pnpm build`   | `tsc -b && vite build` — strict type-check + bundle |
+| `pnpm lint`    | ESLint over the whole repo                          |
+| `pnpm preview` | Serve the production build locally                  |
+
+## Project structure
+
 ```
+src/
+  features/
+    admin/        # SUPER_ADMIN provisioning flows (cold-start OWNER user)
+    auth/         # Store + Admin login, JWT decoding, session store
+    customers/    # Customer CRUD with credit-limit tracking
+    pos/          # POS placeholder (sales flow pending)
+    products/     # Catalog + inventory with quick price / stock adjustments
+    stores/       # SaaS-admin store management
+    users/        # Per-tenant staff (CASHIER / OWNER) management
+  routes/
+    AppRouter.tsx
+    guards/       # AdminGuard, StoreGuard, OwnerGuard
+  shared/
+    api/          # apiClient (axios) + shared interceptors
+    components/   # Layouts (AdminLayout, StoreLayout) + reusable UI
+    hooks/        # useDebounce, useMobileMenu
+    types/        # PageResponse<T> and other cross-feature types
+```
+
+Each feature folder follows the same skeleton: `api/`, `components/`, `hooks/`, `store/`, `types/`, `utils/`.
+
+## Authentication
+
+Two separate flows backed by distinct backend endpoints:
+
+| Role          | Login endpoint | Login route    | Lands on        |
+|---------------|----------------|----------------|-----------------|
+| `SUPER_ADMIN` | `/admin/login` | `/admin/login` | `/admin/stores` |
+| `OWNER`       | `/auth/login`  | `/login`       | `/pos`          |
+| `CASHIER`     | `/auth/login`  | `/login`       | `/pos`          |
+
+Store login body uses `storeCode` (e.g. `"STORE001"`); the decoded JWT then exposes `storeId` (UUID string), `userId`,
+and `role`.
+
+## Routes (current)
+
+```
+/login                              StoreLogin (public)
+/admin/login                        AdminLogin (public)
+/admin                              AdminGuard → AdminLayout
+  /admin/stores                     StoresList
+  /admin/stores/new                 StoreForm (create)
+  /admin/stores/:id/edit            StoreForm (edit)
+  /admin/stores/:id/provision-owner ProvisionOwnerForm
+/pos                                StoreGuard → StoreLayout
+  /pos                              PosPlaceholder
+  /pos/products                     ProductsList   (OWNER + CASHIER read)
+  /pos/customers                    CustomersList  (OWNER + CASHIER read/write)
+  /pos/customers/new                CustomerForm
+  /pos/customers/:id/edit           CustomerForm
+  OwnerGuard (OWNER only)
+    /pos/users                      UsersList
+    /pos/users/new                  UserForm
+    /pos/users/:id/edit             UserForm
+    /pos/products/new               ProductForm
+    /pos/products/:id/edit          ProductForm
+```
+
+## Environment
+
+| Variable       | Default                 | Description                                                 |
+|----------------|-------------------------|-------------------------------------------------------------|
+| `VITE_API_URL` | `http://localhost:8080` | Backend root (the `/api/v1` prefix is added by `apiClient`) |
+
+See `.env.example`.
+
+## Conventions
+
+This project follows a strict feature-driven architecture with shared primitives (axios client, `PageResponse<T>`, error
+mappers, guards, layouts). Before adding a new feature module, read the established conventions in:
+
+- [`CLAUDE.md`](./CLAUDE.md) — guidance for Claude Code
+- [`AGENTS.md`](./AGENTS.md) — same content, addressed to any AI coding agent
+
+Key rules captured there: snake_case TS DTOs when the backend uses `@JsonProperty`, BigDecimal as `string` (never
+`number`), `SyntheticEvent` instead of the deprecated `FormEvent`, `useDebounce(searchInput, 400)` for remote search
+lists, inline confirmation (never `window.confirm`), responsive table + mobile-card pattern, and accessibility rules for
+focus rings, touch targets, and Escape-to-close drawers.
+
+## Backend
+
+The frontend assumes the companion Spring Boot 4 / Java 21 backend (separate repo) is running and reachable. Key
+contracts the frontend depends on:
+
+- `PageResponse<T>` shape: `{ content, page, size, totalElements, totalPages }`
+- `ErrorResponse` shape: `{ error: string, message?: string, fields?: Record<string, string> }` — `fields` keys match
+  the wire-format DTO keys
+- JWT in `Authorization: Bearer <token>` (attached automatically by `apiClient`); a `401` triggers a silent global
+  `logout()`
