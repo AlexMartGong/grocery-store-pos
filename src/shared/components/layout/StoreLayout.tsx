@@ -1,4 +1,4 @@
-import { LogOut, Menu, Package, ShoppingCart, Users } from "lucide-react";
+import { LogOut, Menu, Package, ShoppingCart, UserRound, Users } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../../features/auth/store/authStore";
 import { navLinkClass, useMobileMenu } from "../../hooks/useMobileMenu";
@@ -42,6 +42,10 @@ export const StoreLayout = () => {
                     <NavLink to="/pos/products" className={navLinkClass} onClick={closeMenu}>
                         <Package size={18} />
                         Productos
+                    </NavLink>
+                    <NavLink to="/pos/customers" className={navLinkClass} onClick={closeMenu}>
+                        <UserRound size={18} />
+                        Clientes
                     </NavLink>
                     {isOwner && (
                         <NavLink to="/pos/users" className={navLinkClass} onClick={closeMenu}>

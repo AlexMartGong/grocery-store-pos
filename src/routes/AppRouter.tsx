@@ -12,6 +12,8 @@ import { UsersList } from "../features/users/components/UsersList";
 import { UserForm } from "../features/users/components/UserForm";
 import { ProductsList } from "../features/products/components/ProductsList";
 import { ProductForm } from "../features/products/components/ProductForm";
+import { CustomersList } from "../features/customers/components/CustomersList";
+import { CustomerForm } from "../features/customers/components/CustomerForm";
 import { AdminGuard } from "./guards/AdminGuard";
 import { StoreGuard } from "./guards/StoreGuard";
 import { OwnerGuard } from "./guards/OwnerGuard";
@@ -36,6 +38,9 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <PosPlaceholder /> },
       { path: "products", element: <ProductsList /> },
+      { path: "customers", element: <CustomersList /> },
+      { path: "customers/new", element: <CustomerForm /> },
+      { path: "customers/:id/edit", element: <CustomerForm /> },
       {
         element: <OwnerGuard />,
         children: [
