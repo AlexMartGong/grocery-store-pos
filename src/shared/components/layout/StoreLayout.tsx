@@ -35,7 +35,7 @@ export const StoreLayout = () => {
                     <span className="text-lg font-bold text-white">Pasadita POS</span>
                 </div>
                 <nav aria-label="Main Navigation" className="flex-1 space-y-1 px-3 py-4">
-                    <NavLink to="/pos" end className={navLinkClass} onClick={closeMenu}>
+                    <NavLink to="/pos/sales" className={navLinkClass} onClick={closeMenu}>
                         <ShoppingCart size={18} />
                         POS
                     </NavLink>

@@ -7,7 +7,7 @@ import { StoresList } from "../features/stores/components/StoresList";
 import { ProvisionOwnerForm } from "../features/admin/components/ProvisionOwnerForm";
 import { AdminLayout } from "../shared/components/layout/AdminLayout";
 import { StoreLayout } from "../shared/components/layout/StoreLayout";
-import { PosPlaceholder } from "../features/pos/components/PosPlaceholder";
+import { PosScreen } from "../features/sales/components/PosScreen";
 import { UsersList } from "../features/users/components/UsersList";
 import { UserForm } from "../features/users/components/UserForm";
 import { ProductsList } from "../features/products/components/ProductsList";
@@ -36,7 +36,8 @@ const router = createBrowserRouter([
     path: "/pos",
     element: <StoreGuard><StoreLayout /></StoreGuard>,
     children: [
-      { index: true, element: <PosPlaceholder /> },
+      { index: true, element: <Navigate to="sales" replace /> },
+      { path: "sales", element: <PosScreen /> },
       { path: "products", element: <ProductsList /> },
       { path: "customers", element: <CustomersList /> },
       { path: "customers/new", element: <CustomerForm /> },
