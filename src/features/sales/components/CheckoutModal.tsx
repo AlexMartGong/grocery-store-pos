@@ -17,6 +17,7 @@ import { mapSalesError } from "../utils/errorMessages";
 import { formatMoney } from "../utils/format";
 import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
 import type {
+  CartItem,
   CreateSaleRequest,
   SalePaymentMethod,
   SaleResponse,
@@ -25,7 +26,7 @@ import type {
 interface CheckoutModalProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: (sale: SaleResponse) => void;
+  onSuccess: (sale: SaleResponse, tenderedAmount: number, cartItems: CartItem[]) => void;
 }
 
 const HIGH_CREDIT_THRESHOLD = 0.9;
@@ -152,8 +153,11 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
 
     try {
       const sale = await createSale(req);
+      const currentCart = usePosStore.getState().cart;
+      const tenderedAmount =
+        effectiveMethod === "CASH" || effectiveMethod === "MIXED" ? paidNumber : 0;
       clearCart();
-      onSuccess(sale);
+      onSuccess(sale, tenderedAmount, currentCart);
     } catch (err) {
       setError(mapSalesError(err));
     } finally {

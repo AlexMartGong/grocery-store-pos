@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Printer, X } from "lucide-react";
-import type { SalePaymentMethod, SaleResponse } from "../types";
+import type { CartItem, SalePaymentMethod, SaleResponse } from "../types";
 import { formatMoney, formatSaleDate, formatSaleId } from "../utils/format";
 import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
 
 interface SaleSummaryModalProps {
   sale: SaleResponse | null;
+  tenderedAmount?: number;
+  cartItems?: CartItem[];
   onClose: () => void;
 }
 
@@ -17,7 +19,7 @@ const METHOD_LABEL: Record<SalePaymentMethod, string> = {
   MIXED: "Mixto",
 };
 
-export const SaleSummaryModal = ({ sale, onClose }: SaleSummaryModalProps) => {
+export const SaleSummaryModal = ({ sale, tenderedAmount, cartItems, onClose }: SaleSummaryModalProps) => {
   const open = sale != null;
   const [cached, setCached] = useState<SaleResponse | null>(sale);
   const { render, show } = useModalAnimation(open, { onClose });
@@ -32,6 +34,12 @@ export const SaleSummaryModal = ({ sale, onClose }: SaleSummaryModalProps) => {
   if (!render || !current) return null;
   const showCredit =
     current.payment_method === "CREDIT" || current.payment_method === "MIXED";
+  const showCash =
+    (current.payment_method === "CASH" || current.payment_method === "MIXED") &&
+    (tenderedAmount ?? 0) > 0;
+  const showChange =
+    current.payment_method === "CASH" &&
+    (tenderedAmount ?? 0) > Number(current.total_amount);
 
   return (
     <div
@@ -85,13 +93,16 @@ export const SaleSummaryModal = ({ sale, onClose }: SaleSummaryModalProps) => {
             {current.items.map((item) => {
               const qty = Number(item.quantity);
               const price = Number(item.unit_price);
+              const name =
+                cartItems?.find((c) => c.productId === item.product_id)?.name ?? "Producto";
               return (
                 <li
                   key={item.id}
                   className="flex items-center justify-between gap-3 px-4 py-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-slate-700">
+                    <p className="text-sm font-medium text-slate-900">{name}</p>
+                    <p className="text-xs text-slate-500">
                       {Number.isFinite(qty) ? qty : item.quantity} ×{" "}
                       {formatMoney(price)}
                     </p>
@@ -111,15 +122,25 @@ export const SaleSummaryModal = ({ sale, onClose }: SaleSummaryModalProps) => {
                 {formatMoney(current.total_amount)}
               </dd>
             </div>
-            <div className="flex justify-between text-slate-600">
-              <dt>Pagado</dt>
-              <dd>{formatMoney(current.amount_paid)}</dd>
-            </div>
             {showCredit && (
               <div className="flex justify-between text-amber-700">
                 <dt>A crédito</dt>
                 <dd className="font-semibold">
                   {formatMoney(current.amount_credited)}
+                </dd>
+              </div>
+            )}
+            {showCash && (
+              <div className="flex justify-between text-slate-600">
+                <dt>Efectivo recibido</dt>
+                <dd>{formatMoney(tenderedAmount ?? 0)}</dd>
+              </div>
+            )}
+            {showChange && (
+              <div className="flex justify-between">
+                <dt className="text-slate-600">Cambio</dt>
+                <dd className="font-bold text-emerald-600">
+                  {formatMoney((tenderedAmount ?? 0) - Number(current.total_amount))}
                 </dd>
               </div>
             )}

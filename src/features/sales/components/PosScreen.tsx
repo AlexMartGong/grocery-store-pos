@@ -6,7 +6,7 @@ import { CheckoutModal } from "./CheckoutModal";
 import { SaleSummaryModal } from "./SaleSummaryModal";
 import { useCartItemCount, useCartTotal } from "../store/posStore";
 import { formatMoney, formatSaleId } from "../utils/format";
-import type { SaleResponse } from "../types";
+import type { CartItem, SaleResponse } from "../types";
 
 export const PosScreen = () => {
   const itemCount = useCartItemCount();
@@ -15,6 +15,8 @@ export const PosScreen = () => {
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [lastSale, setLastSale] = useState<SaleResponse | null>(null);
+  const [lastTenderedAmount, setLastTenderedAmount] = useState<number>(0);
+  const [lastCart, setLastCart] = useState<CartItem[]>([]);
   const [toastVisible, setToastVisible] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
 
@@ -38,8 +40,10 @@ export const PosScreen = () => {
     setCheckoutOpen(true);
   };
 
-  const handleSaleSuccess = (sale: SaleResponse) => {
+  const handleSaleSuccess = (sale: SaleResponse, tenderedAmount: number, cartItems: CartItem[]) => {
     setLastSale(sale);
+    setLastTenderedAmount(tenderedAmount);
+    setLastCart(cartItems);
     setCheckoutOpen(false);
     setToastVisible(true);
   };
@@ -108,6 +112,8 @@ export const PosScreen = () => {
 
       <SaleSummaryModal
         sale={summaryOpen ? lastSale : null}
+        tenderedAmount={lastTenderedAmount}
+        cartItems={lastCart}
         onClose={() => setSummaryOpen(false)}
       />
 
