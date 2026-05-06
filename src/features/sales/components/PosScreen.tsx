@@ -29,7 +29,7 @@ export const PosScreen = () => {
 
   useEffect(() => {
     if (!toastVisible) return;
-    const t = setTimeout(() => setToastVisible(false), 3000);
+    const t = setTimeout(() => setToastVisible(false), 6000);
     return () => clearTimeout(t);
   }, [toastVisible]);
 
@@ -71,26 +71,34 @@ export const PosScreen = () => {
         </button>
       )}
 
-      {cartDrawerOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" role="presentation">
-          <div
-            className="absolute inset-0 bg-slate-900/50"
-            onClick={() => setCartDrawerOpen(false)}
-            aria-hidden="true"
+      <div
+        className={`fixed inset-0 z-40 md:hidden ${
+          cartDrawerOpen ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+        role="presentation"
+        aria-hidden={!cartDrawerOpen}
+      >
+        <div
+          className={`absolute inset-0 bg-slate-900/50 transition-opacity duration-300 ease-out ${
+            cartDrawerOpen ? "opacity-100" : "opacity-0"
+          }`}
+          onClick={() => setCartDrawerOpen(false)}
+          aria-hidden="true"
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ticket actual"
+          className={`absolute inset-y-0 right-0 flex w-full max-w-sm flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out ${
+            cartDrawerOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <CartSidebar
+            onCheckout={openCheckout}
+            onClose={() => setCartDrawerOpen(false)}
           />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Ticket actual"
-            className="absolute inset-y-0 right-0 flex w-full max-w-sm flex-col bg-white shadow-2xl"
-          >
-            <CartSidebar
-              onCheckout={openCheckout}
-              onClose={() => setCartDrawerOpen(false)}
-            />
-          </div>
         </div>
-      )}
+      </div>
 
       <CheckoutModal
         open={checkoutOpen}
@@ -110,15 +118,17 @@ export const PosScreen = () => {
           className="fixed right-4 top-4 z-50 flex max-w-sm items-center gap-3 rounded-xl bg-emerald-600 px-4 py-3 text-white shadow-lg"
         >
           <CheckCircle2 aria-hidden className="h-5 w-5 shrink-0" />
-          <div className="text-sm">
-            <p className="font-semibold">Venta #{formatSaleId(lastSale.id)} registrada</p>
+          <div className="flex items-center gap-3 text-sm">
+            <p className="font-semibold">
+              Venta #{formatSaleId(lastSale.id)} registrada
+            </p>
             <button
               type="button"
               onClick={() => {
                 setSummaryOpen(true);
                 setToastVisible(false);
               }}
-              className="text-xs font-semibold underline underline-offset-2 hover:text-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              className="rounded-md bg-emerald-700 px-3 py-1.5 font-medium transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
               Ver ticket
             </button>

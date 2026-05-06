@@ -34,11 +34,12 @@ export const pastelColorFromId = (id: string): string => {
 
 export const formatSaleId = (id: string): string => id.slice(0, 8).toUpperCase();
 
-export const formatSaleDate = (iso: string): string => {
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return iso;
+export const formatSaleDate = (iso: string | null | undefined): string => {
+  const d = iso ? new Date(iso) : new Date();
+  const valid = Number.isFinite(d.getTime()) && d.getFullYear() > 1970;
+  const safe = valid ? d : new Date();
   return new Intl.DateTimeFormat("es-MX", {
     dateStyle: "short",
     timeStyle: "short",
-  }).format(d);
+  }).format(safe);
 };
