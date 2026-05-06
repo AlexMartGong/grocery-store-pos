@@ -15,6 +15,7 @@ import { usePosCustomers } from "../hooks/usePosCustomers";
 import { createSale } from "../api/salesApi";
 import { mapSalesError } from "../utils/errorMessages";
 import { formatMoney } from "../utils/format";
+import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
 import type {
   CreateSaleRequest,
   SalePaymentMethod,
@@ -56,6 +57,11 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { render, show } = useModalAnimation(open, {
+    onClose,
+    closeOnEscape: !submitting,
+  });
+
   useEffect(() => {
     if (!open) return;
     setPaymentMethod(null);
@@ -65,21 +71,7 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
     setError(null);
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !submitting) onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open, onClose, submitting]);
-
-  if (!open) return null;
+  if (!render) return null;
 
   const selectedCustomer =
     customers.find((c) => c.id === selectedCustomerId) ?? null;
@@ -171,7 +163,9 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      className={`fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-0 backdrop-blur-sm transition-opacity duration-300 ease-out sm:items-center sm:p-4 ${
+        show ? "opacity-100" : "opacity-0"
+      }`}
       onClick={() => !submitting && onClose()}
       aria-hidden="true"
     >
@@ -181,7 +175,11 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
         aria-labelledby="checkout-title"
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
-        className="relative flex max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+        className={`relative flex max-h-[95vh] w-full max-w-2xl transform flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl transition-all duration-300 ease-out sm:rounded-3xl ${
+          show
+            ? "translate-y-0 opacity-100 sm:scale-100"
+            : "translate-y-4 opacity-0 sm:translate-y-0 sm:scale-95"
+        }`}
       >
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
           <h2 id="checkout-title" className="text-lg font-semibold text-slate-900">

@@ -1,5 +1,6 @@
-import { useEffect, useId, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { useModalAnimation } from "../../hooks/useModalAnimation";
 
 interface ModalProps {
   isOpen: boolean;
@@ -12,26 +13,15 @@ interface ModalProps {
 export const Modal = ({ isOpen, onClose, title, description, children }: ModalProps) => {
   const titleId = useId();
   const descId = useId();
+  const { render, show } = useModalAnimation(isOpen, { onClose });
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
+  if (!render) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4"
+      className={`fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-0 transition-opacity duration-300 ease-out sm:items-center sm:p-4 ${
+        show ? "opacity-100" : "opacity-0"
+      }`}
       onClick={onClose}
       aria-hidden="true"
     >
@@ -41,7 +31,11 @@ export const Modal = ({ isOpen, onClose, title, description, children }: ModalPr
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-md rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-2xl sm:p-6"
+        className={`relative w-full max-w-md transform rounded-t-2xl bg-white p-4 shadow-xl transition-all duration-300 ease-out sm:rounded-2xl sm:p-6 ${
+          show
+            ? "translate-y-0 opacity-100 sm:scale-100"
+            : "translate-y-4 opacity-0 sm:translate-y-0 sm:scale-95"
+        }`}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">

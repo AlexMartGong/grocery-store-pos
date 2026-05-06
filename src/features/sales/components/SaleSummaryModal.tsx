@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Printer, X } from "lucide-react";
 import type { SalePaymentMethod, SaleResponse } from "../types";
 import { formatMoney, formatSaleDate, formatSaleId } from "../utils/format";
+import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
 
 interface SaleSummaryModalProps {
   sale: SaleResponse | null;
@@ -18,49 +19,14 @@ const METHOD_LABEL: Record<SalePaymentMethod, string> = {
 
 export const SaleSummaryModal = ({ sale, onClose }: SaleSummaryModalProps) => {
   const open = sale != null;
-  const [render, setRender] = useState(open);
-  const [show, setShow] = useState(false);
   const [cached, setCached] = useState<SaleResponse | null>(sale);
+  const { render, show } = useModalAnimation(open, { onClose });
 
   useEffect(() => {
     if (!sale) return;
     const raf = requestAnimationFrame(() => setCached(sale));
     return () => cancelAnimationFrame(raf);
   }, [sale]);
-
-  useEffect(() => {
-    if (open) {
-      let raf2 = 0;
-      const raf1 = requestAnimationFrame(() => {
-        setRender(true);
-        raf2 = requestAnimationFrame(() => setShow(true));
-      });
-      return () => {
-        cancelAnimationFrame(raf1);
-        if (raf2) cancelAnimationFrame(raf2);
-      };
-    }
-    const raf = requestAnimationFrame(() => setShow(false));
-    const t = setTimeout(() => setRender(false), 200);
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(t);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!render) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [render, onClose]);
 
   const current = sale ?? cached;
   if (!render || !current) return null;
