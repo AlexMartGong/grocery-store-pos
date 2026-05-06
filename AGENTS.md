@@ -135,6 +135,9 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
       `validation_failed`, `forbidden`)
     - `mapCustomersError` — `src/features/customers/utils/errorMessages.ts` (codes: `customer_not_found`,
       `validation_failed`, `forbidden`)
+    - `mapSalesError` — `src/features/sales/utils/errorMessages.ts` (codes: `invalid_mixed_payment`,
+      `credit_limit_exceeded`, `customer_required`, `product_not_found`, `customer_not_found`, `conflict`,
+      `validation_failed`, `forbidden`)
       Never add unrelated error codes to another feature's map.
 - **Field-level error state:** When a form submits to a backend endpoint that returns `400` with
   `{ error: "validation_failed", fields: Record<string, string> }`, capture field errors in a separate
@@ -166,7 +169,8 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
         - `/admin/stores/:id/edit` — StoreForm (edit)
         - `/admin/stores/:id/provision-owner` — ProvisionOwnerForm (cold-start OWNER user)
     - `/pos` — StoreGuard → StoreLayout (OWNER / CASHIER)
-        - `/pos` (index) — PosPlaceholder
+        - `/pos` (index) — `<Navigate to="sales" replace />`
+        - `/pos/sales` — PosScreen (cash register UI: catalog + cart + checkout)
         - `/pos/products` — ProductsList (OWNER + CASHIER read; OWNER-only writes nested under OwnerGuard)
         - `/pos/customers` — CustomersList (OWNER + CASHIER read/write — both roles can CRUD)
         - `/pos/customers/new` — CustomerForm (create)
@@ -274,8 +278,100 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
 - **Distinct sidebar icons per nav target:** Every `NavLink` in a layout sidebar must use a **visually
   distinct** lucide icon. Reusing the same glyph for two destinations (e.g., `Users` for both staff and
   customers) creates ambiguity for OWNER who sees both links. Current assignments in `StoreLayout.tsx`:
-  `ShoppingCart` → POS, `Package` → Productos, `UserRound` → Clientes, `Users` → Usuarios (staff). When
-  adding a new nav target, pick a glyph not already in the current sidebar.
+  `ShoppingCart` → `/pos/sales` (POS), `Package` → Productos, `UserRound` → Clientes, `Users` → Usuarios
+  (staff). When adding a new nav target, pick a glyph not already in the current sidebar.
+
+- **POS / sales module (`/pos/sales`):** Cash register UI lives in `src/features/sales/`. Reusable parts:
+    - **Cart store (`src/features/sales/store/posStore.ts`):** `usePosStore` exposes
+      `{ cart, selectedCustomerId, addItem, updateItemQuantity, removeItem, setCustomer, clearCart }`.
+      Selectors `useCartTotal()` and `useCartItemCount()` are exported from the same file. Cart is
+      in-memory only (no persist) — closing the tab clears it intentionally.
+    - **Sales API:** `src/features/sales/api/salesApi.ts` — `createSale(data)`, `getSales(...)`. Backend
+      auto-assigns `cashier_id` from JWT — never send it.
+    - **Sale request DTO uses snake_case** (`payment_method`, `customer_id`, `amount_paid`, `items[].product_id`,
+      `items[].quantity`, `items[].unit_price`). All decimal fields are strings. Per payment method:
+      CARD/TRANSFER → `amount_paid = total`; CASH → `amount_paid = amountReceived`; CREDIT → `amount_paid = "0"`;
+      MIXED → `0 < amount_paid < total` and `customer_id` required (backend code `invalid_mixed_payment`).
+    - **POS data hooks:** `src/features/sales/hooks/usePosProducts.ts` (debounced 300 ms search, page-size 40,
+      active-only) and `usePosCustomers.ts` (single fetch of active customers, dropdown filtered locally).
+      Both wrap an async `load` in `useCallback` and call it via `useEffect(() => { void load(); }, [load])`
+      to satisfy `react-hooks/set-state-in-effect`. Reuse these instead of inlining `getProducts` /
+      `getCustomers` in POS components.
+    - **POS formatters:** `src/features/sales/utils/format.ts` exports `formatMoney`, `getInitials`,
+      `pastelColorFromId` (deterministic UUID → tailwind class for product cards), `formatSaleId` (8-char
+      uppercase prefix), `formatSaleDate` (epoch-safe — falls back to `new Date()` when input is null /
+      invalid / pre-1970). Never call `Intl.DateTimeFormat` directly on `created_at` strings without this
+      guard, or "1969" leaks into the UI.
+
+- **POS full-bleed layout escape:** `StoreLayout` `<main>` is `flex-1 bg-slate-50 p-6 md:p-8`. The POS
+  catalog + cart needs the full viewport, so `PosScreen.tsx` root cancels that padding and pins the
+  height: `<div className="-m-6 md:-m-8 h-[calc(100vh-4rem)] flex flex-col md:flex-row bg-slate-50">`.
+  The `4rem` matches the `<header className="h-16">` of `StoreLayout`. Other future "immersive" pages
+  (kitchen display, scanner) should follow the same escape pattern.
+
+- **Modal entrance / exit animation pattern:** Modals that mount/unmount conditionally must animate both
+  ways. Use two state flags + double `requestAnimationFrame` for entry and `setTimeout(EXIT_DURATION)`
+  before unmount for exit:
+  ```tsx
+  const [render, setRender] = useState(open);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (open) {
+      let raf2 = 0;
+      const raf1 = requestAnimationFrame(() => {
+        setRender(true);
+        raf2 = requestAnimationFrame(() => setShow(true));
+      });
+      return () => { cancelAnimationFrame(raf1); if (raf2) cancelAnimationFrame(raf2); };
+    }
+    const raf = requestAnimationFrame(() => setShow(false));
+    const t = setTimeout(() => setRender(false), 200);
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); };
+  }, [open]);
+  if (!render) return null;
+  ```
+  Backdrop classes: `transition-opacity duration-300 ease-out`, toggled `opacity-100`↔`opacity-0`.
+  Panel classes: `transform transition-all duration-300 ease-out`, toggled
+  `translate-y-0 opacity-100 sm:scale-100` ↔ `translate-y-4 opacity-0 sm:translate-y-0 sm:scale-95`
+  (mobile slides up from bottom, desktop fades + zooms). Reference: `src/shared/components/ui/Modal.tsx`,
+  `src/features/sales/components/CheckoutModal.tsx`, `src/features/sales/components/SaleSummaryModal.tsx`.
+
+- **Caching last prop during exit animation:** When a modal owns nothing but reads from a prop that the
+  parent clears on close (e.g., `SaleSummaryModal`'s `sale` prop set to `null` to close), the panel will
+  briefly render with stale data during the 200 ms exit. Cache the latest non-null prop in state via an
+  `useEffect` whose body uses `requestAnimationFrame(() => setCached(value))` so the lint rule does not
+  flag a sync setState. Then derive `const current = prop ?? cached;` for the JSX.
+
+- **Mobile slide-in drawer pattern:** Drawers must always be mounted and toggle classes — never gate the
+  whole drawer with `{open && <div>}` because the entrance/exit transition is then cut. Pattern:
+  ```tsx
+  <div className={`fixed inset-0 z-40 md:hidden ${open ? "pointer-events-auto" : "pointer-events-none"}`}
+       aria-hidden={!open}>
+    <div className={`absolute inset-0 bg-slate-900/50 transition-opacity duration-300 ease-out
+                     ${open ? "opacity-100" : "opacity-0"}`} onClick="" />
+    <div className={`absolute inset-y-0 right-0 ... bg-white shadow-2xl
+                     transition-transform duration-300 ease-in-out
+                     ${open ? "translate-x-0" : "translate-x-full"}`}>...</div>
+  </div>
+  ```
+  Reference: `src/features/sales/components/PosScreen.tsx`.
+
+- **Lint compliance — `react-hooks/set-state-in-effect`:** Never call `setState` synchronously inside a
+  `useEffect` body. Wrap state mutations in callbacks (`requestAnimationFrame`, `setTimeout`, promise
+  `.then`, event handlers). For data-loading effects, extract an async function via `useCallback` and
+  invoke it with `useEffect(() => { void load(); }, [load])` — the rule allows setState inside the async
+  function because it runs as a callback, not synchronously in the effect.
+
+- **Lint compliance — `react-hooks/refs`:** Do **not** read `ref.current` during render (e.g., to derive
+  JSX from a cached value). Use `useState` updated inside an `requestAnimationFrame` callback in a
+  `useEffect` instead — see the "Caching last prop during exit animation" pattern above. Refs are still
+  fine for imperative DOM access from event handlers / effects.
+
+- **Toast feedback after async actions:** Successful side-effecting actions (e.g., `createSale` ack)
+  should surface a non-blocking toast with `role="status"` + `aria-live="polite"`, auto-dismiss in
+  ~6 s (3 s is too short to read both message and CTA). Embed any secondary action as a real button
+  (`px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 rounded-md font-medium transition-colors`), not a
+  text link, so the click target is finger-sized. Reference: `PosScreen.tsx`'s "Ver ticket" toast.
 
 ## 6. Expected Output Format
 
