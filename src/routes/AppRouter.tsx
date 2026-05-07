@@ -8,6 +8,7 @@ import { ProvisionOwnerForm } from "../features/admin/components/ProvisionOwnerF
 import { AdminLayout } from "../shared/components/layout/AdminLayout";
 import { StoreLayout } from "../shared/components/layout/StoreLayout";
 import { PosScreen } from "../features/sales/components/PosScreen";
+import { SalesList } from "../features/sales/components/SalesList";
 import { UsersList } from "../features/users/components/UsersList";
 import { UserForm } from "../features/users/components/UserForm";
 import { ProductsList } from "../features/products/components/ProductsList";
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="sales" replace /> },
       { path: "sales", element: <PosScreen /> },
+      { path: "sales-history", element: <SalesList /> },
       { path: "products", element: <ProductsList /> },
       { path: "customers", element: <CustomersList /> },
       { path: "customers/new", element: <CustomerForm /> },

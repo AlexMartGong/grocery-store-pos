@@ -1,4 +1,4 @@
-import { LogOut, Menu, Package, ShoppingCart, UserRound, Users } from "lucide-react";
+import { ListOrdered, LogOut, Menu, Package, ShoppingCart, UserRound, Users } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../../features/auth/store/authStore";
 import { navLinkClass, useMobileMenu } from "../../hooks/useMobileMenu";
@@ -32,12 +32,16 @@ export const StoreLayout = () => {
                 }`}
             >
                 <div className="flex h-16 items-center px-6">
-                    <span className="text-lg font-bold text-white">Pasadita POS</span>
+                    <span className="text-lg font-bold text-white">Pasadita</span>
                 </div>
                 <nav aria-label="Main Navigation" className="flex-1 space-y-1 px-3 py-4">
                     <NavLink to="/pos/sales" className={navLinkClass} onClick={closeMenu}>
                         <ShoppingCart size={18} />
                         POS
+                    </NavLink>
+                    <NavLink to="/pos/sales-history" className={navLinkClass} onClick={closeMenu}>
+                        <ListOrdered size={18} />
+                        Historial
                     </NavLink>
                     <NavLink to="/pos/products" className={navLinkClass} onClick={closeMenu}>
                         <Package size={18} />

@@ -7,17 +7,14 @@ export async function createSale(data: CreateSaleRequest): Promise<SaleResponse>
   return res.data;
 }
 
-export async function getSales(
-  page = 0,
-  size = 20,
-  sort?: string,
-): Promise<PageResponse<SaleResponse>> {
+export async function getSales(params: {
+  page: number;
+  size: number;
+  sort?: string;
+}): Promise<PageResponse<SaleResponse>> {
+  const { page, size, sort = "createdAt,desc" } = params;
   const res = await apiClient.get<PageResponse<SaleResponse>>("/sales", {
-    params: {
-      page,
-      size,
-      ...(sort ? { sort } : {}),
-    },
+    params: { page, size, sort },
   });
   return res.data;
 }
