@@ -294,7 +294,7 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
         for KILO products (e.g., `0.250`). `ProductForCart` (exported from `posStore.ts`) requires
         `unit_of_measure: UnitOfMeasure`. When the product is already in the cart, the passed quantity is
         **added** to the existing total — not a hardcoded `+1`.
-      - **Float precision (IEEE 754):** All quantity mutations go through `sanitizeQty = (v: number) => Number(v.toFixed(3))` (module-level in `posStore.ts`) to prevent drift accumulation from repeated additions. Applied in `addItem` (wraps the existing + new sum) and `updateItemQuantity` (wraps the raw argument). `useCartItemCount` applies `Number(...toFixed(3))` to the running sum before returning. Never bypass `sanitizeQty` when updating cart quantities.
+      - **Float precision (IEEE 754):** All quantity mutations go through `sanitizeQty = (v: number) => Number(v.toFixed(3))` (module-level in `posStore.ts`) to prevent drift accumulation from repeated additions. Applied in `addItem` on **both** branches — the merge branch wraps `existing + new`, and the new-item branch wraps the raw `quantity` argument before storing it (so a caller passing `0.1 + 0.2` cannot persist drift). Also applied in `updateItemQuantity` (wraps the raw argument). `useCartItemCount` applies `Number(...toFixed(3))` to the running sum before returning. Never bypass `sanitizeQty` when updating cart quantities.
     - **Sales API:** `src/features/sales/api/salesApi.ts` — `createSale(data)`,
       `getSales({ page, size, sort? })`. `getSales` accepts an object; `sort` defaults to `"createdAt,desc"`.
       Backend auto-assigns `cashier_id` from JWT — never send it.

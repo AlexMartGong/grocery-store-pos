@@ -38,6 +38,7 @@ export const usePosStore = create<PosState>()((set) => ({
         };
       }
       const unitPrice = Number(product.sale_price);
+      const safeQty = sanitizeQty(quantity);
       return {
         cart: [
           ...state.cart,
@@ -45,9 +46,9 @@ export const usePosStore = create<PosState>()((set) => ({
             productId: product.id,
             name: product.name,
             barcode: product.barcode,
-            quantity,
+            quantity: safeQty,
             unitPrice,
-            subtotal: quantity * unitPrice,
+            subtotal: safeQty * unitPrice,
             unitOfMeasure: product.unit_of_measure,
           },
         ],
