@@ -171,6 +171,7 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
     - `/pos` — StoreGuard → StoreLayout (OWNER / CASHIER)
         - `/pos` (index) — `<Navigate to="sales" replace />`
         - `/pos/sales` — PosScreen (cash register UI: catalog + cart + checkout)
+        - `/pos/sales-history` — SalesList (OWNER + CASHIER; paginated history, view + reprint tickets)
         - `/pos/products` — ProductsList (OWNER + CASHIER read; OWNER-only writes nested under OwnerGuard)
         - `/pos/customers` — CustomersList (OWNER + CASHIER read/write — both roles can CRUD)
         - `/pos/customers/new` — CustomerForm (create)
@@ -278,8 +279,9 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
 - **Distinct sidebar icons per nav target:** Every `NavLink` in a layout sidebar must use a **visually
   distinct** lucide icon. Reusing the same glyph for two destinations (e.g., `Users` for both staff and
   customers) creates ambiguity for OWNER who sees both links. Current assignments in `StoreLayout.tsx`:
-  `ShoppingCart` → `/pos/sales` (POS), `Package` → Productos, `UserRound` → Clientes, `Users` → Usuarios
-  (staff). When adding a new nav target, pick a glyph not already in the current sidebar.
+  `ShoppingCart` → `/pos/sales` (POS), `ListOrdered` → `/pos/sales-history` (Historial), `Package` → Productos,
+  `UserRound` → Clientes, `Users` → Usuarios (staff). When adding a new nav target, pick a glyph not already in
+  the current sidebar.
 
 - **POS / sales module (`/pos/sales`):** Cash register UI lives in `src/features/sales/`. Reusable parts:
     - **Cart store (`src/features/sales/store/posStore.ts`):** `usePosStore` exposes
@@ -292,8 +294,9 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
         for KILO products (e.g., `0.250`). `ProductForCart` (exported from `posStore.ts`) requires
         `unit_of_measure: UnitOfMeasure`. When the product is already in the cart, the passed quantity is
         **added** to the existing total — not a hardcoded `+1`.
-    - **Sales API:** `src/features/sales/api/salesApi.ts` — `createSale(data)`, `getSales(...)`. Backend
-      auto-assigns `cashier_id` from JWT — never send it.
+    - **Sales API:** `src/features/sales/api/salesApi.ts` — `createSale(data)`,
+      `getSales({ page, size, sort? })`. `getSales` accepts an object; `sort` defaults to `"createdAt,desc"`.
+      Backend auto-assigns `cashier_id` from JWT — never send it.
     - **Sale request DTO uses snake_case** (`payment_method`, `customer_id`, `amount_paid`, `items[].product_id`,
       `items[].quantity`, `items[].unit_price`). All decimal fields are strings. Per payment method:
       CARD/TRANSFER → `amount_paid = total`; CASH → `amount_paid = amountReceived`; CREDIT → `amount_paid = "0"`;
@@ -322,6 +325,31 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
       KILO: `` `${qty.toFixed(3)} kg` ``; PIECE integer: `` `${qty} pz` ``; PIECE fraction:
       `` `${qty.toFixed(1)} pz` ``. The quantity chip between `−` / `+` buttons is a clickable
       `<button>` that opens `QuantityModal` pre-filled with the current value.
+
+- **Sales history list (`/pos/sales-history`):** Read-only paginated list of confirmed sales. Component:
+  `src/features/sales/components/SalesList.tsx`. Reuses `SaleSummaryModal` and all formatters from
+  `sales/utils/format.ts`. Key patterns:
+    - **No search:** `GET /sales` only accepts `page`/`size`/`sort` — omit search UI until backend adds the
+      param. Omitting it is correct; never add a filter that silently does nothing server-side.
+    - **On-demand product name resolution:** `openSale(sale)` calls
+      `Promise.all(uniqueProductIds.map(id => getProductById(id).catch(() => null)))`, builds `CartItem[]`,
+      then passes it to `SaleSummaryModal`. Individual `getProductById` 404s fall back to name `"Producto"`
+      so they never block viewing the ticket.
+    - **Per-row loading state:** `loadingDetailId: string | null` tracks the in-flight row. Other rows stay
+      interactive. Pattern: `disabled={loadingDetailId === s.id}`.
+    - **Table layout stability:** `<table className="w-full table-fixed">` + fixed `<th>` widths
+      (`w-32`/`w-40`) prevent column reflow on re-render. `table-auto` recalculates on every setState.
+    - **Fixed-width action buttons:** Buttons that toggle loading state MUST carry `w-32 justify-center` so
+      the button is dimension-stable when text toggles ("Ver ticket" ↔ "Cargando..."). Swap the icon
+      conditionally: `loadingDetailId === s.id ? <Loader2 className="animate-spin" /> : <ReceiptText />`.
+      Text-width delta on a free-width button causes a column shift even inside `table-fixed` cells.
+    - **Modal without tenderedAmount:** Pass no `tenderedAmount` (not persisted post-sale); the cash/change
+      section in `SaleSummaryModal` is auto-hidden by its own `showCash`/`showChange` guards.
+
+- **Global scrollbar-gutter:** `src/index.css` sets `html { scrollbar-gutter: stable; }` to permanently
+  reserve the scrollbar track width. Prevents CLS when modals apply `body { overflow: hidden }`. **Never**
+  compensate with `document.body.style.paddingRight` or `marginRight` — the gutter handles it. Reference:
+  `src/shared/hooks/useModalAnimation.ts` sets only `overflow: hidden`, no padding hack needed.
 
 - **POS full-bleed layout escape:** `StoreLayout` `<main>` is `flex-1 bg-slate-50 p-6 md:p-8`. The POS
   catalog + cart needs the full viewport, so `PosScreen.tsx` root cancels that padding and pins the
