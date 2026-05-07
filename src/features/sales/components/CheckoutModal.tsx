@@ -31,7 +31,8 @@ interface CheckoutModalProps {
 
 const HIGH_CREDIT_THRESHOLD = 0.9;
 
-const QUICK_CASH = [50, 100, 200, 500] as const;
+const QUICK_CASH = [50, 100, 200, 500, 1000] as const;
+const QUICK_COINS = [1, 2, 5, 10, 20] as const;
 
 interface MethodConfig {
   value: SalePaymentMethod;
@@ -282,7 +283,7 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
                 autoFocus
                 className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50 py-6 text-center text-3xl font-bold text-slate-900 focus-visible:border-indigo-400 focus-visible:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200"
               />
-              <div className="mt-4 grid grid-cols-5 gap-2">
+              <div className="mt-4 grid grid-cols-6 gap-2">
                 {QUICK_CASH.map((value) => (
                   <button
                     key={value}
@@ -301,6 +302,27 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
                   className="rounded-lg bg-indigo-50 py-2.5 font-semibold text-indigo-700 transition-colors hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                 >
                   Exacto
+                </button>
+              </div>
+              <div className="mt-2 grid grid-cols-6 gap-2">
+                {QUICK_COINS.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setAmountPaid(value.toString())}
+                    aria-label={`Pagar con $${value}`}
+                    className="rounded-lg bg-slate-100 py-2.5 font-semibold text-slate-800 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                  >
+                    ${value}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setAmountPaid("")}
+                  aria-label="Limpiar monto"
+                  className="rounded-lg bg-rose-50 py-2.5 font-semibold text-rose-600 transition-colors hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+                >
+                  Limpiar
                 </button>
               </div>
               <div
