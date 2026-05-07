@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, ListOrdered, ReceiptText } from "lucide-react";
+import { AlertCircle, ListOrdered, Loader2, ReceiptText } from "lucide-react";
 import { getSales } from "../api/salesApi";
 import { getProductById } from "../../products/api/productsApi";
 import { mapSalesError } from "../utils/errorMessages";
@@ -172,7 +172,11 @@ export const SalesList = () => {
                   disabled={loadingDetailId === s.id}
                   className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/40 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <ReceiptText className="h-4 w-4" />
+                  {loadingDetailId === s.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ReceiptText className="h-4 w-4" />
+                  )}
                   {loadingDetailId === s.id ? "Cargando..." : "Ver ticket"}
                 </button>
               </li>
@@ -233,9 +237,13 @@ export const SalesList = () => {
                           type="button"
                           onClick={() => void openSale(s)}
                           disabled={loadingDetailId === s.id}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/40 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex w-32 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/40 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          <ReceiptText className="h-3.5 w-3.5" />
+                          {loadingDetailId === s.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <ReceiptText className="h-3.5 w-3.5" />
+                          )}
                           {loadingDetailId === s.id ? "Cargando..." : "Ver ticket"}
                         </button>
                       </div>
