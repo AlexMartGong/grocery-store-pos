@@ -111,6 +111,10 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
     return true;
   })();
 
+  const handleQuickCash = (value: number) => {
+    setAmountPaid((prev) => ((parseFloat(prev || "0") || 0) + value).toString());
+  };
+
   const handleSelectMethod = (m: MethodConfig) => {
     if (m.needsCustomer && !selectedCustomerId) return;
     setPaymentMethod(m.value);
@@ -283,47 +287,49 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
                 autoFocus
                 className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50 py-6 text-center text-3xl font-bold text-slate-900 focus-visible:border-indigo-400 focus-visible:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200"
               />
-              <div className="mt-4 grid grid-cols-6 gap-2">
-                {QUICK_CASH.map((value) => (
+              <div className="mt-4 flex flex-col gap-2">
+                <div className="grid grid-cols-6 gap-2">
+                  {QUICK_CASH.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => handleQuickCash(value)}
+                      aria-label={`Sumar $${value}`}
+                      className="h-12 rounded-lg bg-slate-100 font-semibold text-slate-800 transition-colors transition-transform active:scale-95 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                    >
+                      ${value}
+                    </button>
+                  ))}
                   <button
-                    key={value}
                     type="button"
-                    onClick={() => setAmountPaid(value.toString())}
-                    aria-label={`Pagar con $${value}`}
-                    className="rounded-lg bg-slate-100 py-2.5 font-semibold text-slate-800 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                    onClick={() => setAmountPaid(total.toFixed(2))}
+                    aria-label="Monto exacto"
+                    className="h-12 rounded-lg bg-indigo-600 font-semibold text-white transition-colors transition-transform active:scale-95 hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                   >
-                    ${value}
+                    Exacto
                   </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setAmountPaid(total.toFixed(2))}
-                  aria-label="Monto exacto"
-                  className="rounded-lg bg-indigo-50 py-2.5 font-semibold text-indigo-700 transition-colors hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
-                >
-                  Exacto
-                </button>
-              </div>
-              <div className="mt-2 grid grid-cols-6 gap-2">
-                {QUICK_COINS.map((value) => (
+                </div>
+                <div className="grid grid-cols-6 gap-2">
+                  {QUICK_COINS.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => handleQuickCash(value)}
+                      aria-label={`Sumar $${value}`}
+                      className="h-12 rounded-lg bg-slate-100 font-semibold text-slate-800 transition-colors transition-transform active:scale-95 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                    >
+                      ${value}
+                    </button>
+                  ))}
                   <button
-                    key={value}
                     type="button"
-                    onClick={() => setAmountPaid(value.toString())}
-                    aria-label={`Pagar con $${value}`}
-                    className="rounded-lg bg-slate-100 py-2.5 font-semibold text-slate-800 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                    onClick={() => setAmountPaid("")}
+                    aria-label="Limpiar monto"
+                    className="h-12 rounded-lg bg-rose-100 font-semibold text-rose-700 transition-colors transition-transform active:scale-95 hover:bg-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
                   >
-                    ${value}
+                    Limpiar
                   </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setAmountPaid("")}
-                  aria-label="Limpiar monto"
-                  className="rounded-lg bg-rose-50 py-2.5 font-semibold text-rose-600 transition-colors hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
-                >
-                  Limpiar
-                </button>
+                </div>
               </div>
               <div
                 className="mt-3 text-center text-xl font-semibold"
