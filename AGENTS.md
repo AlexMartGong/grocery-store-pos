@@ -286,6 +286,12 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
       `{ cart, selectedCustomerId, addItem, updateItemQuantity, removeItem, setCustomer, clearCart }`.
       Selectors `useCartTotal()` and `useCartItemCount()` are exported from the same file. Cart is
       in-memory only (no persist) — closing the tab clears it intentionally.
+      - `CartItem` carries `unitOfMeasure: UnitOfMeasure` (re-exported via `sales/types/index.ts` from
+        `../../products/types`). Never omit this field when constructing a cart item.
+      - `addItem(product, quantity = 1)` — pass `1` for PIECE products (default); pass the weighed decimal
+        for KILO products (e.g., `0.250`). `ProductForCart` (exported from `posStore.ts`) requires
+        `unit_of_measure: UnitOfMeasure`. When the product is already in the cart, the passed quantity is
+        **added** to the existing total — not a hardcoded `+1`.
     - **Sales API:** `src/features/sales/api/salesApi.ts` — `createSale(data)`, `getSales(...)`. Backend
       auto-assigns `cashier_id` from JWT — never send it.
     - **Sale request DTO uses snake_case** (`payment_method`, `customer_id`, `amount_paid`, `items[].product_id`,
@@ -302,6 +308,20 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
       uppercase prefix), `formatSaleDate` (epoch-safe — falls back to `new Date()` when input is null /
       invalid / pre-1970). Never call `Intl.DateTimeFormat` directly on `created_at` strings without this
       guard, or "1969" leaks into the UI.
+    - **QuantityModal (`src/features/sales/components/QuantityModal.tsx`):** Centered modal with a
+      giant `type="number" step="0.001"` input. Props: `{ open, onClose, onConfirm, initialValue?,
+      unitOfMeasure, productName }`. Label reads "Ingresar peso (kg)" for KILO, "Ingresar cantidad"
+      for PIECE. Uses `useModalAnimation`. Two call sites with distinct state owners:
+      (1) `PosScreen` — `kiloProduct: ProductResponse | null` state; KILO card clicks open this modal,
+      PIECE cards call `addItem` directly. (2) `CartSidebar` — `editingItem: CartItem | null` state;
+      clicking the quantity chip opens this modal to set an exact value on an existing cart line.
+    - **ProductGrid `onProductClick` prop:** `ProductGrid` requires `onProductClick: (product: ProductResponse) => void`
+      — it no longer calls `addItem` directly. `PosScreen` owns the dispatch logic (KILO → open
+      `QuantityModal`, PIECE → `addItem` immediately). `ProductCard` receives `onAdd` from `ProductGrid`.
+    - **Cart quantity formatting:** `formatQty(item: CartItem)` helper inside `CartSidebar` —
+      KILO: `` `${qty.toFixed(3)} kg` ``; PIECE integer: `` `${qty} pz` ``; PIECE fraction:
+      `` `${qty.toFixed(1)} pz` ``. The quantity chip between `−` / `+` buttons is a clickable
+      `<button>` that opens `QuantityModal` pre-filled with the current value.
 
 - **POS full-bleed layout escape:** `StoreLayout` `<main>` is `flex-1 bg-slate-50 p-6 md:p-8`. The POS
   catalog + cart needs the full viewport, so `PosScreen.tsx` root cancels that padding and pins the

@@ -1,17 +1,18 @@
 import { create } from "zustand";
-import type { CartItem } from "../types";
+import type { CartItem, UnitOfMeasure } from "../types";
 
 interface ProductForCart {
   id: string;
   name: string;
   barcode: string | null;
   sale_price: string;
+  unit_of_measure: UnitOfMeasure;
 }
 
 interface PosState {
   cart: CartItem[];
   selectedCustomerId: string | null;
-  addItem: (product: ProductForCart) => void;
+  addItem: (product: ProductForCart, quantity?: number) => void;
   updateItemQuantity: (productId: string, quantity: number) => void;
   removeItem: (productId: string) => void;
   setCustomer: (customerId: string | null) => void;
@@ -21,18 +22,15 @@ interface PosState {
 export const usePosStore = create<PosState>()((set) => ({
   cart: [],
   selectedCustomerId: null,
-  addItem: (product) =>
+  addItem: (product, quantity = 1) =>
     set((state) => {
       const existing = state.cart.find((i) => i.productId === product.id);
       if (existing) {
+        const newQty = existing.quantity + quantity;
         return {
           cart: state.cart.map((i) =>
             i.productId === product.id
-              ? {
-                  ...i,
-                  quantity: i.quantity + 1,
-                  subtotal: (i.quantity + 1) * i.unitPrice,
-                }
+              ? { ...i, quantity: newQty, subtotal: newQty * i.unitPrice }
               : i,
           ),
         };
@@ -45,9 +43,10 @@ export const usePosStore = create<PosState>()((set) => ({
             productId: product.id,
             name: product.name,
             barcode: product.barcode,
-            quantity: 1,
+            quantity,
             unitPrice,
-            subtotal: unitPrice,
+            subtotal: quantity * unitPrice,
+            unitOfMeasure: product.unit_of_measure,
           },
         ],
       };
@@ -76,3 +75,5 @@ export const useCartTotal = () =>
 
 export const useCartItemCount = () =>
   usePosStore((s) => s.cart.reduce((sum, i) => sum + i.quantity, 0));
+
+export type { ProductForCart };

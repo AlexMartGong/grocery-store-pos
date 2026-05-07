@@ -11,6 +11,8 @@ import {
 import { usePosStore, useCartItemCount, useCartTotal } from "../store/posStore";
 import { usePosCustomers } from "../hooks/usePosCustomers";
 import { formatMoney } from "../utils/format";
+import { QuantityModal } from "./QuantityModal";
+import type { CartItem } from "../types";
 import type { CustomerResponse } from "../../customers/types";
 
 interface CartSidebarProps {
@@ -34,6 +36,13 @@ const isHighCredit = (c: CustomerResponse): boolean => {
   return used >= HIGH_CREDIT_THRESHOLD * limit;
 };
 
+const formatQty = (item: CartItem): string => {
+  if (item.unitOfMeasure === "KILO") return `${item.quantity.toFixed(3)} kg`;
+  return Number.isInteger(item.quantity)
+    ? `${item.quantity} pz`
+    : `${item.quantity.toFixed(1)} pz`;
+};
+
 export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
   const cart = usePosStore((s) => s.cart);
   const selectedCustomerId = usePosStore((s) => s.selectedCustomerId);
@@ -46,6 +55,7 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
 
   const { customers, loading: customersLoading } = usePosCustomers();
   const [confirmClear, setConfirmClear] = useState(false);
+  const [editingItem, setEditingItem] = useState<CartItem | null>(null);
 
   const selectedCustomer =
     customers.find((c) => c.id === selectedCustomerId) ?? null;
@@ -199,7 +209,7 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
                   </span>
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() =>
@@ -210,12 +220,15 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
                     >
                       <Minus aria-hidden className="h-4 w-4" />
                     </button>
-                    <span
-                      aria-live="polite"
-                      className="min-w-[1.5rem] text-center text-sm font-semibold text-slate-900"
+                    <button
+                      type="button"
+                      onClick={() => setEditingItem(item)}
+                      aria-label={`Editar cantidad de ${item.name}`}
+                      title="Clic para editar cantidad"
+                      className="min-w-[3.5rem] rounded-lg px-2 py-1 text-center text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                     >
-                      {item.quantity}
-                    </span>
+                      {formatQty(item)}
+                    </button>
                     <button
                       type="button"
                       onClick={() =>
@@ -262,6 +275,18 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
           {cart.length === 0 ? "Carrito vacío" : `Cobrar ${formatMoney(total)}`}
         </button>
       </div>
+
+      <QuantityModal
+        open={editingItem !== null}
+        onClose={() => setEditingItem(null)}
+        onConfirm={(value) => {
+          if (editingItem) updateItemQuantity(editingItem.productId, value);
+          setEditingItem(null);
+        }}
+        initialValue={editingItem?.quantity ?? 1}
+        unitOfMeasure={editingItem?.unitOfMeasure ?? "PIECE"}
+        productName={editingItem?.name ?? ""}
+      />
     </div>
   );
 };

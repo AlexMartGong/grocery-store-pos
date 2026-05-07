@@ -4,13 +4,16 @@ import { ProductGrid } from "./ProductGrid";
 import { CartSidebar } from "./CartSidebar";
 import { CheckoutModal } from "./CheckoutModal";
 import { SaleSummaryModal } from "./SaleSummaryModal";
-import { useCartItemCount, useCartTotal } from "../store/posStore";
+import { QuantityModal } from "./QuantityModal";
+import { useCartItemCount, useCartTotal, usePosStore } from "../store/posStore";
 import { formatMoney, formatSaleId } from "../utils/format";
 import type { CartItem, SaleResponse } from "../types";
+import type { ProductResponse } from "../../products/types";
 
 export const PosScreen = () => {
   const itemCount = useCartItemCount();
   const total = useCartTotal();
+  const addItem = usePosStore((s) => s.addItem);
 
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -19,6 +22,7 @@ export const PosScreen = () => {
   const [lastCart, setLastCart] = useState<CartItem[]>([]);
   const [toastVisible, setToastVisible] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [kiloProduct, setKiloProduct] = useState<ProductResponse | null>(null);
 
   useEffect(() => {
     if (!cartDrawerOpen) return;
@@ -48,10 +52,24 @@ export const PosScreen = () => {
     setToastVisible(true);
   };
 
+  const handleProductClick = (product: ProductResponse) => {
+    if (product.unit_of_measure === "KILO") {
+      setKiloProduct(product);
+    } else {
+      addItem({
+        id: product.id,
+        name: product.name,
+        barcode: product.barcode,
+        sale_price: product.sale_price,
+        unit_of_measure: product.unit_of_measure,
+      });
+    }
+  };
+
   return (
     <div className="-m-6 flex h-[calc(100vh-4rem)] flex-col bg-slate-50 md:-m-8 md:flex-row">
       <section className="relative flex-1 overflow-hidden">
-        <ProductGrid />
+        <ProductGrid onProductClick={handleProductClick} />
       </section>
 
       <aside className="hidden w-96 shrink-0 border-l border-slate-200 md:flex md:flex-col">
@@ -115,6 +133,26 @@ export const PosScreen = () => {
         tenderedAmount={lastTenderedAmount}
         cartItems={lastCart}
         onClose={() => setSummaryOpen(false)}
+      />
+
+      <QuantityModal
+        open={kiloProduct !== null}
+        onClose={() => setKiloProduct(null)}
+        onConfirm={(weight) => {
+          if (kiloProduct) {
+            addItem({
+              id: kiloProduct.id,
+              name: kiloProduct.name,
+              barcode: kiloProduct.barcode,
+              sale_price: kiloProduct.sale_price,
+              unit_of_measure: kiloProduct.unit_of_measure,
+            }, weight);
+          }
+          setKiloProduct(null);
+        }}
+        initialValue={0}
+        unitOfMeasure="KILO"
+        productName={kiloProduct?.name ?? ""}
       />
 
       {toastVisible && lastSale && (

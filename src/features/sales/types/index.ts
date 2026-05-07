@@ -1,3 +1,7 @@
+import type { UnitOfMeasure } from "../../products/types";
+
+export type { UnitOfMeasure };
+
 export type SalePaymentMethod = "CASH" | "CARD" | "TRANSFER" | "CREDIT" | "MIXED";
 
 export type SaleStatus = "COMPLETED" | "CANCELED";
@@ -44,4 +48,5 @@ export interface CartItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  unitOfMeasure: UnitOfMeasure;
 }

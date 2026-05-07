@@ -1,6 +1,5 @@
 import { AlertCircle, AlertTriangle, PackageSearch, Search } from "lucide-react";
 import { usePosProducts } from "../hooks/usePosProducts";
-import { usePosStore } from "../store/posStore";
 import type { ProductResponse } from "../../products/types";
 import { formatMoney, getInitials, pastelColorFromId } from "../utils/format";
 
@@ -20,27 +19,22 @@ const stockTone = (current: string, minimum: string) => {
   return { className: "text-emerald-600", label: `${cur} en stock`, warn: false };
 };
 
-const ProductCard = ({ product }: { product: ProductResponse }) => {
-  const addItem = usePosStore((s) => s.addItem);
+const ProductCard = ({
+  product,
+  onAdd,
+}: {
+  product: ProductResponse;
+  onAdd: (product: ProductResponse) => void;
+}) => {
   const tone = stockTone(product.current_stock, product.minimum_stock);
   const outOfStock = Number(product.current_stock) <= 0;
   const initials = getInitials(product.name);
   const palette = pastelColorFromId(product.id);
 
-  const handleClick = () => {
-    if (outOfStock) return;
-    addItem({
-      id: product.id,
-      name: product.name,
-      barcode: product.barcode,
-      sale_price: product.sale_price,
-    });
-  };
-
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={() => !outOfStock && onAdd(product)}
       disabled={outOfStock}
       aria-label={`Agregar ${product.name} al carrito${outOfStock ? " (agotado)" : ""}`}
       className={`group flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${
@@ -97,7 +91,11 @@ const SkeletonCard = () => (
   </div>
 );
 
-export const ProductGrid = () => {
+interface ProductGridProps {
+  onProductClick: (product: ProductResponse) => void;
+}
+
+export const ProductGrid = ({ onProductClick }: ProductGridProps) => {
   const { products, loading, error, searchInput, setSearchInput } = usePosProducts();
 
   return (
@@ -150,7 +148,7 @@ export const ProductGrid = () => {
         ) : (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
             {products.map((p) => (
-              <ProductCard key={p.id} product={p} />
+              <ProductCard key={p.id} product={p} onAdd={onProductClick} />
             ))}
           </div>
         )}
