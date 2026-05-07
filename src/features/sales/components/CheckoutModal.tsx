@@ -153,8 +153,8 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
       amount_paid: amountPaidStr,
       items: cart.map((i) => ({
         product_id: i.productId,
-        quantity: i.quantity.toString(),
-        unit_price: i.unitPrice.toString(),
+        quantity: i.quantity.toFixed(3),
+        unit_price: i.unitPrice.toFixed(2),
       })),
     };
 

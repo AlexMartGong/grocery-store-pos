@@ -19,6 +19,8 @@ interface PosState {
   clearCart: () => void;
 }
 
+const sanitizeQty = (value: number) => Number(value.toFixed(3));
+
 export const usePosStore = create<PosState>()((set) => ({
   cart: [],
   selectedCustomerId: null,
@@ -26,7 +28,7 @@ export const usePosStore = create<PosState>()((set) => ({
     set((state) => {
       const existing = state.cart.find((i) => i.productId === product.id);
       if (existing) {
-        const newQty = existing.quantity + quantity;
+        const newQty = sanitizeQty(existing.quantity + quantity);
         return {
           cart: state.cart.map((i) =>
             i.productId === product.id
@@ -54,10 +56,11 @@ export const usePosStore = create<PosState>()((set) => ({
   updateItemQuantity: (productId, quantity) =>
     set((state) => {
       if (quantity <= 0) return state;
+      const safeQty = sanitizeQty(quantity);
       return {
         cart: state.cart.map((i) =>
           i.productId === productId
-            ? { ...i, quantity, subtotal: quantity * i.unitPrice }
+            ? { ...i, quantity: safeQty, subtotal: safeQty * i.unitPrice }
             : i,
         ),
       };
@@ -74,6 +77,6 @@ export const useCartTotal = () =>
   usePosStore((s) => s.cart.reduce((sum, i) => sum + i.subtotal, 0));
 
 export const useCartItemCount = () =>
-  usePosStore((s) => s.cart.reduce((sum, i) => sum + i.quantity, 0));
+  usePosStore((s) => Number(s.cart.reduce((sum, i) => sum + i.quantity, 0).toFixed(3)));
 
 export type { ProductForCart };
