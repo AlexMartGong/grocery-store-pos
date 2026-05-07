@@ -294,6 +294,7 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
         for KILO products (e.g., `0.250`). `ProductForCart` (exported from `posStore.ts`) requires
         `unit_of_measure: UnitOfMeasure`. When the product is already in the cart, the passed quantity is
         **added** to the existing total — not a hardcoded `+1`.
+      - **Float precision (IEEE 754):** All quantity mutations go through `sanitizeQty = (v: number) => Number(v.toFixed(3))` (module-level in `posStore.ts`) to prevent drift accumulation from repeated additions. Applied in `addItem` (wraps the existing + new sum) and `updateItemQuantity` (wraps the raw argument). `useCartItemCount` applies `Number(...toFixed(3))` to the running sum before returning. Never bypass `sanitizeQty` when updating cart quantities.
     - **Sales API:** `src/features/sales/api/salesApi.ts` — `createSale(data)`,
       `getSales({ page, size, sort? })`. `getSales` accepts an object; `sort` defaults to `"createdAt,desc"`.
       Backend auto-assigns `cashier_id` from JWT — never send it.
@@ -301,6 +302,18 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
       `items[].quantity`, `items[].unit_price`). All decimal fields are strings. Per payment method:
       CARD/TRANSFER → `amount_paid = total`; CASH → `amount_paid = amountReceived`; CREDIT → `amount_paid = "0"`;
       MIXED → `0 < amount_paid < total` and `customer_id` required (backend code `invalid_mixed_payment`).
+      Items payload always serializes `quantity` as `item.quantity.toFixed(3)` and `unit_price` as
+      `item.unitPrice.toFixed(2)` — never `.toString()`, which would preserve IEEE 754 drift as invalid wire strings.
+    - **Quick Cash Buttons (`CheckoutModal`):** Two-row denomination grid rendered only inside
+      `{showCalculator && ...}` (CASH method; MIXED toggle lives inside the same block so buttons apply to both).
+      Constants at module level: `const QUICK_CASH = [50, 100, 200, 500, 1000] as const` (bills) and
+      `const QUICK_COINS = [1, 2, 5, 10, 20] as const` (coins). Additive handler:
+      `handleQuickCash = (value: number) => setAmountPaid(prev => ((parseFloat(prev || "0") || 0) + value).toString())`
+      — the outer `|| 0` guards against `NaN` when the user typed invalid text before tapping a denomination.
+      "Exacto" **overwrites** (does not accumulate): `setAmountPaid(total.toFixed(2))`.
+      "Limpiar" resets: `setAmountPaid("")`. All buttons use `h-12 active:scale-95 transition-transform
+      focus-visible:ring-2`. Layout: `flex flex-col gap-2 mt-4` wrapper → two `grid grid-cols-6 gap-2` rows.
+      "Exacto" style: `bg-indigo-600 text-white hover:bg-indigo-700`. "Limpiar" style: `bg-rose-100 text-rose-700`.
     - **POS data hooks:** `src/features/sales/hooks/usePosProducts.ts` (debounced 300 ms search, page-size 40,
       active-only) and `usePosCustomers.ts` (single fetch of active customers, dropdown filtered locally).
       Both wrap an async `load` in `useCallback` and call it via `useEffect(() => { void load(); }, [load])`
