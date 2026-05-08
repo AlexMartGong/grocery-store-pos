@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type SyntheticEvent } from "react";
 import { Lock } from "lucide-react";
 import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
 import { useCashShiftStore } from "../store/cashShiftStore";
+import { useAuthStore } from "../../auth/store/authStore";
 
 interface Props {
   open: boolean;
@@ -17,6 +18,7 @@ export const OpenShiftModal = ({ open }: Props) => {
   const openShift = useCashShiftStore((s) => s.open);
   const error = useCashShiftStore((s) => s.error);
   const isLoading = useCashShiftStore((s) => s.isLoading);
+  const logout = useAuthStore((s) => s.logout);
 
   useEffect(() => {
     if (render) {
@@ -118,6 +120,14 @@ export const OpenShiftModal = ({ open }: Props) => {
             className="flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:bg-emerald-300"
           >
             {isLoading ? "Abriendo..." : "Abrir caja"}
+          </button>
+
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-2 w-full text-center text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 focus-visible:outline-none focus-visible:underline"
+          >
+            Cerrar sesión
           </button>
         </form>
       </div>
