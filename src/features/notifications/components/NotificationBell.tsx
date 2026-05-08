@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Bell, BellOff, Loader2, RotateCcw } from "lucide-react";
+import { Bell, BellOff, Loader2, RotateCcw, X } from "lucide-react";
 import { useNotificationStore } from "../store/notificationStore";
 import { NotificationItem } from "./NotificationItem";
+import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
 
 export const NotificationBell = () => {
   const notifications = useNotificationStore((s) => s.notifications);
@@ -14,31 +15,26 @@ export const NotificationBell = () => {
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const { render, show } = useModalAnimation(open, { onClose: () => setOpen(false) });
 
   useEffect(() => {
     if (!open) return;
     const onMouseDown = (e: MouseEvent) => {
       if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
     };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
     document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
+    return () => document.removeEventListener("mousedown", onMouseDown);
   }, [open]);
 
   const badgeText = unreadCount > 99 ? "99+" : String(unreadCount);
 
   return (
     <>
-      {open && (
+      {render && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/50 md:hidden"
-          onClick={() => setOpen(false)}
+          className={`fixed inset-0 z-40 transition-opacity duration-300 ease-out md:hidden ${
+            show ? "opacity-100" : "opacity-0"
+          }`}
           aria-hidden="true"
         />
       )}
@@ -66,27 +62,41 @@ export const NotificationBell = () => {
           )}
         </button>
 
-        {open && (
+        {render && (
           <div
             role="menu"
-            className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-hidden rounded-t-2xl border-t border-slate-200 bg-white shadow-xl md:absolute md:inset-auto md:bottom-auto md:right-0 md:mt-2 md:max-h-96 md:w-96 md:rounded-xl md:border"
+            className={`fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-hidden rounded-t-2xl border-t border-slate-200 bg-white shadow-xl transform transition-all duration-300 ease-out md:absolute md:inset-auto md:bottom-auto md:right-0 md:mt-2 md:max-h-96 md:w-96 md:rounded-xl md:border ${
+              show
+                ? "translate-y-0 opacity-100 md:scale-100"
+                : "translate-y-full opacity-0 md:translate-y-0 md:scale-95"
+            }`}
           >
             <div className="mx-auto mt-2 h-1 w-8 rounded-full bg-slate-300 md:hidden" aria-hidden="true" />
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
               <h3 className="text-sm font-semibold text-slate-800">Notificaciones</h3>
-              <button
-                type="button"
-                onClick={() => void fetchUnread()}
-                disabled={isLoading}
-                aria-label="Actualizar notificaciones"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 disabled:opacity-50"
-              >
-                {isLoading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <RotateCcw size={16} />
-                )}
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => void fetchUnread()}
+                  disabled={isLoading}
+                  aria-label="Actualizar notificaciones"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <RotateCcw size={16} />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Cerrar notificaciones"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             {error && (
