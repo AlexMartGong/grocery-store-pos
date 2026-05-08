@@ -88,15 +88,17 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
   const isHighCredit =
     selectedCustomer && creditLimit > 0 && creditUsed >= HIGH_CREDIT_THRESHOLD * creditLimit;
 
-  const paidNumber = Number(amountPaid);
-  const paidValid = Number.isFinite(paidNumber) && paidNumber >= 0;
-  const change = paidValid ? paidNumber - total : 0;
+  const safeTotal = Number(total.toFixed(2));
+  const rawPaidFloat = parseFloat(amountPaid);
+  const paidValid = amountPaid !== "" && Number.isFinite(rawPaidFloat) && rawPaidFloat >= 0;
+  const paidNumber = paidValid ? Number(rawPaidFloat.toFixed(2)) : 0;
+  const change = paidValid ? Number((paidNumber - safeTotal).toFixed(2)) : 0;
   const showCalculator = paymentMethod === "CASH";
   const canShowMixedSwitch =
     paymentMethod === "CASH" &&
     paidValid &&
     paidNumber > 0 &&
-    paidNumber < total &&
+    paidNumber < safeTotal &&
     !!selectedCustomerId;
 
   const effectiveMethod: SalePaymentMethod | null =
@@ -104,9 +106,9 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
 
   const canSubmit = (() => {
     if (!effectiveMethod || cart.length === 0 || submitting) return false;
-    if (effectiveMethod === "CASH") return paidValid && paidNumber >= total;
+    if (effectiveMethod === "CASH") return paidValid && paidNumber >= safeTotal;
     if (effectiveMethod === "MIXED")
-      return paidValid && paidNumber > 0 && paidNumber < total && !!selectedCustomerId;
+      return paidValid && paidNumber > 0 && paidNumber < safeTotal && !!selectedCustomerId;
     if (effectiveMethod === "CREDIT") return !!selectedCustomerId;
     return true;
   })();
@@ -295,7 +297,7 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
                       type="button"
                       onClick={() => handleQuickCash(value)}
                       aria-label={`Sumar $${value}`}
-                      className="h-12 rounded-lg bg-slate-100 font-semibold text-slate-800 transition-colors transition-transform active:scale-95 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                      className="h-12 rounded-lg bg-slate-100 font-semibold text-slate-800 transition-colors active:scale-95 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                     >
                       ${value}
                     </button>
@@ -304,7 +306,7 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
                     type="button"
                     onClick={() => setAmountPaid(total.toFixed(2))}
                     aria-label="Monto exacto"
-                    className="h-12 rounded-lg bg-indigo-600 font-semibold text-white transition-colors transition-transform active:scale-95 hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                    className="h-12 rounded-lg bg-indigo-600 font-semibold text-white transition-colors active:scale-95 hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                   >
                     Exacto
                   </button>
@@ -316,7 +318,7 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
                       type="button"
                       onClick={() => handleQuickCash(value)}
                       aria-label={`Sumar $${value}`}
-                      className="h-12 rounded-lg bg-slate-100 font-semibold text-slate-800 transition-colors transition-transform active:scale-95 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                      className="h-12 rounded-lg bg-slate-100 font-semibold text-slate-800 transition-colors active:scale-95 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                     >
                       ${value}
                     </button>
@@ -325,7 +327,7 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
                     type="button"
                     onClick={() => setAmountPaid("")}
                     aria-label="Limpiar monto"
-                    className="h-12 rounded-lg bg-rose-100 font-semibold text-rose-700 transition-colors transition-transform active:scale-95 hover:bg-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+                    className="h-12 rounded-lg bg-rose-100 font-semibold text-rose-700 transition-colors active:scale-95 hover:bg-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
                   >
                     Limpiar
                   </button>
@@ -363,7 +365,7 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
                       El resto a crédito (Pago Mixto)
                     </p>
                     <p className="text-xs text-slate-500">
-                      Se cargará {formatMoney(total - paidNumber)} al saldo de
+                      Se cargará {formatMoney(safeTotal - paidNumber)} al saldo de
                       {" "}
                       {selectedCustomer?.full_name}
                     </p>
@@ -379,7 +381,7 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
               <span className="font-semibold">{selectedCustomer.full_name}</span>.
               Disponible tras la venta:{" "}
               <span className="font-semibold">
-                {formatMoney(Math.max(0, creditAvailable - total))}
+                {formatMoney(Math.max(0, creditAvailable - safeTotal))}
               </span>
               .
             </div>

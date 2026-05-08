@@ -20,6 +20,7 @@ interface PosState {
 }
 
 const sanitizeQty = (value: number) => Number(value.toFixed(3));
+const sanitizePrice = (value: number) => Number(value.toFixed(2));
 
 export const usePosStore = create<PosState>()((set) => ({
   cart: [],
@@ -32,7 +33,7 @@ export const usePosStore = create<PosState>()((set) => ({
         return {
           cart: state.cart.map((i) =>
             i.productId === product.id
-              ? { ...i, quantity: newQty, subtotal: newQty * i.unitPrice }
+              ? { ...i, quantity: newQty, subtotal: sanitizePrice(newQty * i.unitPrice) }
               : i,
           ),
         };
@@ -48,7 +49,7 @@ export const usePosStore = create<PosState>()((set) => ({
             barcode: product.barcode,
             quantity: safeQty,
             unitPrice,
-            subtotal: safeQty * unitPrice,
+            subtotal: sanitizePrice(safeQty * unitPrice),
             unitOfMeasure: product.unit_of_measure,
           },
         ],
@@ -61,7 +62,7 @@ export const usePosStore = create<PosState>()((set) => ({
       return {
         cart: state.cart.map((i) =>
           i.productId === productId
-            ? { ...i, quantity: safeQty, subtotal: safeQty * i.unitPrice }
+            ? { ...i, quantity: safeQty, subtotal: sanitizePrice(safeQty * i.unitPrice) }
             : i,
         ),
       };
@@ -75,7 +76,7 @@ export const usePosStore = create<PosState>()((set) => ({
 }));
 
 export const useCartTotal = () =>
-  usePosStore((s) => s.cart.reduce((sum, i) => sum + i.subtotal, 0));
+  usePosStore((s) => sanitizePrice(s.cart.reduce((sum, i) => sum + i.subtotal, 0)));
 
 export const useCartItemCount = () =>
   usePosStore((s) => Number(s.cart.reduce((sum, i) => sum + i.quantity, 0).toFixed(3)));
