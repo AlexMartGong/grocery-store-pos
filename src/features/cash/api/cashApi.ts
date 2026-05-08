@@ -23,6 +23,11 @@ export async function getCurrentShift(): Promise<CashShiftResponse | null> {
   }
 }
 
+export async function getShiftPreview(): Promise<CashShiftResponse> {
+  const res = await apiClient.get<CashShiftResponse>("/cash/shifts/current/preview");
+  return res.data;
+}
+
 export async function closeShift(
   real_balance: string,
   notes?: string,
