@@ -1,9 +1,20 @@
-import { useCallback, useEffect } from "react";
-import { ListOrdered, LogOut, Menu, Package, ShoppingCart, UserRound, Users } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import {
+    ListOrdered,
+    LockKeyhole,
+    LogOut,
+    Menu,
+    Package,
+    ShoppingCart,
+    UserRound,
+    Users,
+} from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../../features/auth/store/authStore";
 import { useCashShiftStore } from "../../../features/cash/store/cashShiftStore";
+import { CloseShiftModal } from "../../../features/cash/components/CloseShiftModal";
 import { OpenShiftModal } from "../../../features/cash/components/OpenShiftModal";
+import { formatMoney } from "../../../features/sales/utils/format";
 import { navLinkClass, useMobileMenu } from "../../hooks/useMobileMenu";
 
 export const StoreLayout = () => {
@@ -15,6 +26,8 @@ export const StoreLayout = () => {
     const fetchCurrentShift = useCashShiftStore((s) => s.fetchCurrentShift);
     const currentShift = useCashShiftStore((s) => s.currentShift);
     const hasFetched = useCashShiftStore((s) => s.hasFetched);
+
+    const [closeModalOpen, setCloseModalOpen] = useState(false);
 
     const loadShift = useCallback(() => {
         void fetchCurrentShift();
@@ -72,6 +85,30 @@ export const StoreLayout = () => {
                         </NavLink>
                     )}
                 </nav>
+                {currentShift && (
+                    <div className="border-t border-slate-800 px-3 py-4">
+                        <div className="mb-2 px-2 text-[11px] uppercase tracking-wide text-slate-500">
+                            Turno abierto
+                        </div>
+                        <div className="mb-3 flex items-center justify-between px-2 text-xs text-slate-400">
+                            <span>Fondo</span>
+                            <span className="font-semibold tabular-nums text-slate-200">
+                                {formatMoney(currentShift.opening_balance)}
+                            </span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                closeMenu();
+                                setCloseModalOpen(true);
+                            }}
+                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+                        >
+                            <LockKeyhole size={16} />
+                            Cerrar caja
+                        </button>
+                    </div>
+                )}
             </aside>
 
             <div className="flex flex-1 flex-col">
@@ -104,6 +141,10 @@ export const StoreLayout = () => {
             </div>
 
             <OpenShiftModal open={hasFetched && !currentShift} />
+            <CloseShiftModal
+                open={closeModalOpen}
+                onClose={() => setCloseModalOpen(false)}
+            />
         </div>
     );
 };

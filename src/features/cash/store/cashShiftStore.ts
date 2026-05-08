@@ -10,7 +10,9 @@ interface CashShiftState {
   hasFetched: boolean;
   fetchCurrentShift: () => Promise<void>;
   open: (opening_balance: string) => Promise<boolean>;
-  close: (real_balance: string, notes?: string) => Promise<boolean>;
+  close: (real_balance: string, notes?: string) => Promise<CashShiftResponse | null>;
+  clearCurrentShift: () => void;
+  clearError: () => void;
   reset: () => void;
 }
 
@@ -50,13 +52,15 @@ export const useCashShiftStore = create<CashShiftState>()((set) => ({
   close: async (real_balance, notes) => {
     set({ isLoading: true, error: null });
     try {
-      await closeShift(real_balance, notes);
-      set({ currentShift: null, isLoading: false });
-      return true;
+      const closed = await closeShift(real_balance, notes);
+      set({ isLoading: false });
+      return closed;
     } catch (err) {
       set({ error: mapCashShiftError(err), isLoading: false });
-      return false;
+      return null;
     }
   },
+  clearCurrentShift: () => set({ currentShift: null, error: null }),
+  clearError: () => set({ error: null }),
   reset: () => set({ ...INITIAL }),
 }));
