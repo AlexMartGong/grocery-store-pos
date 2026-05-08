@@ -14,6 +14,8 @@ import { useAuthStore } from "../../../features/auth/store/authStore";
 import { useCashShiftStore } from "../../../features/cash/store/cashShiftStore";
 import { CloseShiftModal } from "../../../features/cash/components/CloseShiftModal";
 import { OpenShiftModal } from "../../../features/cash/components/OpenShiftModal";
+import { NotificationBell } from "../../../features/notifications/components/NotificationBell";
+import { useNotificationStore } from "../../../features/notifications/store/notificationStore";
 import { formatMoney } from "../../../features/sales/utils/format";
 import { navLinkClass, useMobileMenu } from "../../hooks/useMobileMenu";
 
@@ -27,7 +29,11 @@ export const StoreLayout = () => {
     const currentShift = useCashShiftStore((s) => s.currentShift);
     const hasFetched = useCashShiftStore((s) => s.hasFetched);
 
+    const fetchUnread = useNotificationStore((s) => s.fetchUnread);
+
     const [closeModalOpen, setCloseModalOpen] = useState(false);
+
+    const isOwner = user?.role === "OWNER";
 
     const loadShift = useCallback(() => {
         void fetchCurrentShift();
@@ -36,12 +42,17 @@ export const StoreLayout = () => {
         loadShift();
     }, [loadShift]);
 
+    const loadNotifications = useCallback(() => {
+        if (isOwner) void fetchUnread();
+    }, [fetchUnread, isOwner]);
+    useEffect(() => {
+        loadNotifications();
+    }, [loadNotifications]);
+
     const handleLogout = () => {
         logout();
         navigate("/login", { replace: true });
     };
-
-    const isOwner = user?.role === "OWNER";
 
     return (
         <div className="flex min-h-screen">
@@ -122,6 +133,7 @@ export const StoreLayout = () => {
                         <Menu size={20} />
                     </button>
                     <div className="flex items-center gap-4">
+                        {isOwner && <NotificationBell />}
                         <div className="flex flex-col items-end leading-tight">
                             <span className="text-sm font-medium text-slate-700">{user?.username}</span>
                             <span className="text-xs text-slate-500">{user?.role}</span>

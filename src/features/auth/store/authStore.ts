@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useCashShiftStore } from "../../cash/store/cashShiftStore";
+import { useNotificationStore } from "../../notifications/store/notificationStore";
 import type { AuthUser } from "../types";
 import { decodeToken, isExpired, toAuthUser } from "../utils/token";
 
@@ -32,6 +33,7 @@ export const useAuthStore = create<AuthState>()(
         return true;
       },
       logout: () => {
+        useNotificationStore.getState().reset();
         useCashShiftStore.getState().reset();
         set({ token: null, user: null, isAuthenticated: false });
       },
