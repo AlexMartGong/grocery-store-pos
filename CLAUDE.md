@@ -138,6 +138,8 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
     - `mapSalesError` — `src/features/sales/utils/errorMessages.ts` (codes: `invalid_mixed_payment`,
       `credit_limit_exceeded`, `customer_required`, `product_not_found`, `customer_not_found`, `conflict`,
       `validation_failed`, `forbidden`)
+    - `mapCashShiftError` — `src/features/cash/utils/errorMessages.ts` (codes: `shift_already_open`,
+      `open_shift_not_found`, `validation_failed`, `forbidden`)
       Never add unrelated error codes to another feature's map.
 - **Field-level error state:** When a form submits to a backend endpoint that returns `400` with
   `{ error: "validation_failed", fields: Record<string, string> }`, capture field errors in a separate
@@ -433,6 +435,44 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
   ~6 s (3 s is too short to read both message and CTA). Embed any secondary action as a real button
   (`px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 rounded-md font-medium transition-colors`), not a
   text link, so the click target is finger-sized. Reference: `PosScreen.tsx`'s "Ver ticket" toast.
+
+- **Cash shifts module (`/pos/*` gate):** Shift lifecycle lives in `src/features/cash/`. `StoreLayout`
+  mounts `<OpenShiftModal>` and `<CloseShiftModal>` as siblings of `<main>` — they gate every `/pos/*`
+  route. Reusable parts:
+    - **Cash store (`src/features/cash/store/cashShiftStore.ts`):** `useCashShiftStore` exposes
+      `{ currentShift, isLoading, error, hasFetched, fetchCurrentShift, open, close, clearCurrentShift,
+      clearError, reset }`. No `persist` — backend is the source of truth. `hasFetched` starts `false`
+      and goes `true` after the first `fetchCurrentShift` resolves (success or error). The
+      `OpenShiftModal` gate is `hasFetched && !currentShift` — the `hasFetched` guard prevents a flash
+      during the initial GET. `close()` returns `CashShiftResponse | null` and does **not** clear
+      `currentShift` — the caller owns the receipt display and calls `clearCurrentShift()` after
+      acknowledgement. `reset()` wipes all state including `hasFetched=false` (used on logout);
+      `clearCurrentShift()` nulls only `currentShift`/`error` and keeps `hasFetched=true` so
+      `OpenShiftModal` reappears immediately.
+    - **Logout integration:** `authStore.logout` calls `useCashShiftStore.getState().reset()` before
+      clearing token — same `getState()` no-React-binding pattern as the `apiClient` interceptor. Covers
+      user-switch and silent 401 logout.
+    - **`OpenShiftModal` — non-dismissible blocking modal (`src/features/cash/components/OpenShiftModal.tsx`):**
+      Use `useModalAnimation(open, { closeOnEscape: false })` and omit `onClick` on backdrop. No X
+      button, no Cancel. Single submit. Pattern for any mandatory gate (e.g., onboarding steps).
+    - **`CloseShiftModal` — two-step modal (`src/features/cash/components/CloseShiftModal.tsx`):** Step
+      `"form"` is dismissible (ESC, backdrop, Cancel); step `"receipt"` is not (`closeOnEscape: false`,
+      backdrop `onClick` conditionally omitted). Modal resets step/fields/error in
+      `useEffect([open, clearError])` so reopening always starts clean. `handleFinish` calls `onClose()`
+      first (starts 200 ms exit), then `setTimeout(220ms, clearCurrentShift)` to prevent overlap with
+      `OpenShiftModal`. `closedShift` is local component state — receipt data survives unmount.
+      Difference display: `±0.0049` tolerance for Sobrante / Faltante / Exacto; `text-emerald-600` /
+      `text-rose-600` / `text-slate-700`; paired icons `ArrowUpCircle` / `ArrowDownCircle` /
+      `CheckCircle2` (color + icon, never color alone — WCAG 1.4.1).
+    - **Sidebar shift footer:** In `StoreLayout` `<aside>`, after `<nav>` (which is `flex-1`), render
+      `{currentShift && <div className="border-t border-slate-800 px-3 py-4">...</div>}` with a pill
+      showing `opening_balance` and a `bg-rose-600` "Cerrar caja" button (`LockKeyhole` icon). Call
+      `closeMenu()` before opening `CloseShiftModal` to close the mobile sidebar first.
+    - **`StoreLayout` mount fetch:** `useCallback(() => { void fetchCurrentShift(); }, [fetchCurrentShift])`
+      + `useEffect(() => { loadShift(); }, [loadShift])` — satisfies `react-hooks/set-state-in-effect`.
+    - **Cash API (`src/features/cash/api/cashApi.ts`):** `getCurrentShift()` catches 404 → `null`; all
+      other errors propagate. `getShiftHistory({ page, size, sort? })` is a stub for a future OWNER
+      history page — do not wire UI until backend supports the endpoint.
 
 ## 6. Expected Output Format
 
