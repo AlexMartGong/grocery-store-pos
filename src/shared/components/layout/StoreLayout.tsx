@@ -1,6 +1,9 @@
+import { useCallback, useEffect } from "react";
 import { ListOrdered, LogOut, Menu, Package, ShoppingCart, UserRound, Users } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../../features/auth/store/authStore";
+import { useCashShiftStore } from "../../../features/cash/store/cashShiftStore";
+import { OpenShiftModal } from "../../../features/cash/components/OpenShiftModal";
 import { navLinkClass, useMobileMenu } from "../../hooks/useMobileMenu";
 
 export const StoreLayout = () => {
@@ -8,6 +11,17 @@ export const StoreLayout = () => {
     const user = useAuthStore((s) => s.user);
     const logout = useAuthStore((s) => s.logout);
     const { isMobileMenuOpen, setIsMobileMenuOpen, closeMenu } = useMobileMenu();
+
+    const fetchCurrentShift = useCashShiftStore((s) => s.fetchCurrentShift);
+    const currentShift = useCashShiftStore((s) => s.currentShift);
+    const hasFetched = useCashShiftStore((s) => s.hasFetched);
+
+    const loadShift = useCallback(() => {
+        void fetchCurrentShift();
+    }, [fetchCurrentShift]);
+    useEffect(() => {
+        loadShift();
+    }, [loadShift]);
 
     const handleLogout = () => {
         logout();
@@ -88,6 +102,8 @@ export const StoreLayout = () => {
                     <Outlet />
                 </main>
             </div>
+
+            <OpenShiftModal open={hasFetched && !currentShift} />
         </div>
     );
 };

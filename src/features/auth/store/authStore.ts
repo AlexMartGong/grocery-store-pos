@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useCashShiftStore } from "../../cash/store/cashShiftStore";
 import type { AuthUser } from "../types";
 import { decodeToken, isExpired, toAuthUser } from "../utils/token";
 
@@ -30,7 +31,10 @@ export const useAuthStore = create<AuthState>()(
         });
         return true;
       },
-      logout: () => set({ token: null, user: null, isAuthenticated: false }),
+      logout: () => {
+        useCashShiftStore.getState().reset();
+        set({ token: null, user: null, isAuthenticated: false });
+      },
     }),
     {
       name: "grocery-pos-auth",
