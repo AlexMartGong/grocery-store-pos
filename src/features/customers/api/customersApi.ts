@@ -2,6 +2,8 @@ import { apiClient } from "../../../shared/api/api";
 import type { PageResponse } from "../../../shared/types";
 import type {
   CreateCustomerRequest,
+  CreatePaymentRequest,
+  CustomerPaymentResponse,
   CustomerResponse,
   UpdateCustomerRequest,
 } from "../types";
@@ -45,4 +47,16 @@ export async function updateCustomer(
 
 export async function deleteCustomer(id: string): Promise<void> {
   await apiClient.delete(`/customers/${id}`);
+}
+
+export async function registerPayment(
+  customerId: string,
+  amount: string,
+): Promise<CustomerPaymentResponse> {
+  const body: CreatePaymentRequest = { amount };
+  const res = await apiClient.post<CustomerPaymentResponse>(
+    `/customers/${customerId}/payments`,
+    body,
+  );
+  return res.data;
 }

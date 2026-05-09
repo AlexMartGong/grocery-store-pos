@@ -15,3 +15,14 @@ export interface CreateCustomerRequest {
 }
 
 export type UpdateCustomerRequest = CreateCustomerRequest;
+
+export interface CreatePaymentRequest {
+  amount: string;
+}
+
+export interface CustomerPaymentResponse {
+  id: string;
+  amount: string;
+  customer_id: string;
+  created_at: string;
+}

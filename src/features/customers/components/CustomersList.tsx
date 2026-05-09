@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   AlertTriangle,
+  DollarSign,
   Pencil,
   Plus,
   Search,
@@ -12,6 +13,7 @@ import {
 import { deleteCustomer, getCustomers } from "../api/customersApi";
 import { mapCustomersError } from "../utils/errorMessages";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
+import { RegisterPaymentModal } from "./RegisterPaymentModal";
 import type { CustomerResponse } from "../types";
 
 const PAGE_SIZE = 20;
@@ -39,6 +41,11 @@ const isHighCredit = (c: CustomerResponse): boolean => {
   return balance / limit >= 0.9;
 };
 
+const hasDebt = (c: CustomerResponse): boolean => {
+  const balance = Number(c.outstanding_balance);
+  return Number.isFinite(balance) && balance > 0;
+};
+
 export const CustomersList = () => {
   const navigate = useNavigate();
 
@@ -51,6 +58,7 @@ export const CustomersList = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [paymentCustomer, setPaymentCustomer] = useState<CustomerResponse | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -254,6 +262,15 @@ export const CustomersList = () => {
                       >
                         <Pencil className="h-4 w-4" /> Editar
                       </button>
+                      {hasDebt(c) && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentCustomer(c)}
+                          className="inline-flex min-w-32 flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                        >
+                          <DollarSign className="h-4 w-4" /> Abonar
+                        </button>
+                      )}
                       {c.active && (
                         <button
                           type="button"
@@ -351,6 +368,15 @@ export const CustomersList = () => {
                             >
                               <Pencil className="h-3.5 w-3.5" /> Editar
                             </button>
+                            {hasDebt(c) && (
+                              <button
+                                type="button"
+                                onClick={() => setPaymentCustomer(c)}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-white px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                              >
+                                <DollarSign className="h-3.5 w-3.5" /> Abonar
+                              </button>
+                            )}
                             {c.active && (
                               <button
                                 type="button"
@@ -421,6 +447,13 @@ export const CustomersList = () => {
           </div>
         </div>
       </div>
+
+      <RegisterPaymentModal
+        isOpen={!!paymentCustomer}
+        customer={paymentCustomer}
+        onClose={() => setPaymentCustomer(null)}
+        onSuccess={load}
+      />
     </div>
   );
 };
