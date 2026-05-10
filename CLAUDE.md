@@ -3,6 +3,31 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with the frontend code of the `grocery-store`
 POS/SaaS repository.
 
+> **Companion file:** [`AGENTS.md`](./AGENTS.md) holds the same engineering rules for non-Claude agents
+> (Cursor, Copilot, etc.). **Keep both files byte-for-byte equivalent below the title block** — every edit
+> here MUST be mirrored there in the same commit. User-facing setup/quickstart lives in
+> [`README.md`](./README.md); this file is the engineering rulebook.
+
+## 0. Commands
+
+| Command         | Purpose                                                              |
+|-----------------|----------------------------------------------------------------------|
+| `pnpm install`  | Install dependencies (Node ≥ 20, **pnpm ≥ 9** required)              |
+| `pnpm dev`      | Vite dev server with HMR; the `--host` flag exposes it on the LAN    |
+| `pnpm build`    | `tsc -b && vite build` — strict type-check + production bundle       |
+| `pnpm lint`     | ESLint over the whole repo                                           |
+| `pnpm preview`  | Serve the production build locally                                   |
+
+**No test runner is configured.** Verification baseline: `pnpm lint && pnpm build`, then `pnpm dev` for
+manual UI checks against a running backend.
+
+**Package manager — pnpm only.** `pnpm-lock.yaml` is the source of truth. Never run `npm install` /
+`yarn` / `npm run …` — they will desynchronize the lockfile and may pull mismatched transitive versions.
+
+**Environment.** Copy `.env.example` → `.env` once; the only variable is `VITE_API_URL`
+(default `http://localhost:8080`). The `/api/v1` prefix is appended by `apiClient` — do not include
+it in the env value or in feature API paths.
+
 ## 1. Role
 
 Act as a **Senior Frontend Engineer** specialized in React 19, TypeScript 6, and modern UI architectures. You are the
