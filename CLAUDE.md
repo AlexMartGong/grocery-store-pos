@@ -444,3 +444,52 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
     - **Cash API (`src/features/cash/api/cashApi.ts`):** `getCurrentShift()` catches 404 → `null`; other
       errors propagate. `getShiftHistory({ page, size, sort? })` is a stub for a future OWNER history
       page — do not wire UI until backend supports it.
+
+- **Barcode scanning (dual: HID scanner + camera):** Shared infra in `src/shared/`. Backend exposes
+  `GET /products/search?barcode=`; frontend wraps it via `searchByBarcode(barcode)` in
+  `src/features/products/api/productsApi.ts` (404 → `null`, mirrors `cashApi.getCurrentShift`). Never
+  call the endpoint directly elsewhere.
+    - **`useBarcodeScanner` hook (`src/shared/hooks/useBarcodeScanner.ts`):** global `keydown` listener
+      with timing-based detection. Defaults: `interKeyMs=30`, `minLength=4`. Active element rules:
+      ignore if focused inside an editable element **unless** that element carries
+      `data-allow-scanner="true"` (opt-in). When opted-in and the gap between keys is "sobrehumano"
+      (`<= interKeyMs`), the hook calls `e.preventDefault()` + `stopPropagation()` on each char so
+      scanner bytes never reach the input. On scanner `Enter`, the hook also calls `flushInputValue()`
+      (native `HTMLInputElement.prototype.value` setter + synthetic `input` event) to clear any leaked
+      first char and resync the React controlled value. Always pass `enabled: !cameraScannerOpen` so the
+      hook doesn't double-fire while the camera scanner modal is decoding.
+    - **`CameraScannerModal` (`src/shared/components/scanner/CameraScannerModal.tsx`):** wraps
+      `html5-qrcode` (v2.3.8, pnpm-installed — never duplicate the dep). Uses `useModalAnimation` with
+      the standard entrance/exit pattern. Camera defaults to rear (`facingMode: { ideal: "environment" }`).
+      Supported formats: `EAN_13`, `EAN_8`, `UPC_A`, `UPC_E`, `CODE_128`, `CODE_39`, `ITF`, `QR_CODE`,
+      `DATA_MATRIX`. Maps `NotAllowedError` / `NotFoundError` / `NotReadableError` to legible Spanish
+      messages with a "Reintentar" button (increments a `retryNonce` to re-run the effect). `setState`
+      inside the start effect is wrapped in `requestAnimationFrame` to satisfy
+      `react-hooks/set-state-in-effect`. `Html5Qrcode.stop()` is called from a try/catch wrapper since
+      it rejects if not scanning. Reuse this modal — do not instantiate `Html5Qrcode` ad-hoc per
+      feature.
+    - **Feedback utils (`src/shared/utils/feedback.ts`):** `playBeep(durationMs?, freq?)` (singleton
+      `AudioContext`, square wave 1200Hz/90ms by default), `playErrorBeep()` (220Hz/140ms), and
+      `vibrate(pattern)` (no-op when `navigator.vibrate` absent). Always pair a successful scan with
+      `playBeep() + vibrate(50)` and a failed scan with `playErrorBeep() + vibrate([60,50,60])`. iOS
+      Web Audio requires a prior user gesture — the hook's `Enter` keystroke and the camera button tap
+      both qualify.
+    - **POS scan flow (`PosScreen.handleScan`):** `useCallback(async code => ...)` calls
+      `searchByBarcode`, then: 404 / inactive / `current_stock <= 0` → toast rojo (`role="status"
+      aria-live="polite"`, auto-dismiss 4 s) + error beep + triple vibrate; success → success beep +
+      single vibrate, then PIECE products → `addItem` (qty 1, merged via `usePosStore`'s `sanitizeQty`),
+      KILO products → open existing `QuantityModal` via `setKiloProduct(product)`. The catalog search
+      `<input type="search">` in `ProductGrid` carries `data-allow-scanner="true"` so the hook can fire
+      while the cashier is also typing.
+    - **Product form scan flow (`ProductForm`):** `barcode` input is `autoFocus`-equivalent via a
+      `useRef<HTMLInputElement>` + `useEffect(() => { if (!isEdit && !loading) ref.current?.focus(); },
+      [isEdit, loading])` so a wireless scanner with autocomplete works on `/pos/products/new`. Adjacent
+      camera button opens `CameraScannerModal`; `handleScan` writes the code into form state, plays
+      beep + vibrate, and calls `searchByBarcode(code)` — if an existing product comes back with
+      `existing.id !== id` (the route param), set `duplicateMessage` to
+      `\`Este código ya pertenece al producto: ${existing.name}\`` rendered in `text-rose-500`. Edit
+      mode where the match is the same product **must not** flag it. Same check runs on input `onBlur`
+      so manual typing (or pasted code) is also validated.
+    - **`data-allow-scanner` opt-in:** Only attach this attribute to inputs that should accept scanner
+      bytes (e.g., a catalog search). The hook itself enforces the suppression — do not also add custom
+      `onKeyDown` handlers to strip digits; that double-blocks legitimate human typing.
