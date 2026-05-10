@@ -1,9 +1,16 @@
 import axios from "axios";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { AlertCircle, ArrowLeft, Package, Save } from "lucide-react";
-import { createProduct, getProductById, updateProduct } from "../api/productsApi";
+import { AlertCircle, ArrowLeft, Camera, Package, Save } from "lucide-react";
+import {
+  createProduct,
+  getProductById,
+  searchByBarcode,
+  updateProduct,
+} from "../api/productsApi";
 import { mapProductsError } from "../utils/errorMessages";
+import { CameraScannerModal } from "../../../shared/components/scanner/CameraScannerModal";
+import { playBeep, vibrate } from "../../../shared/utils/feedback";
 import type { ApiErrorResponse } from "../../auth/types";
 import type { UnitOfMeasure } from "../types";
 
@@ -46,6 +53,44 @@ export const ProductForm = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
+  const barcodeRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEdit || loading) return;
+    barcodeRef.current?.focus();
+  }, [isEdit, loading]);
+
+  const checkBarcodeOwnership = async (code: string) => {
+    if (!code.trim()) {
+      setDuplicateMessage(null);
+      return;
+    }
+    try {
+      const existing = await searchByBarcode(code.trim());
+      if (existing && existing.id !== id) {
+        setDuplicateMessage(`Este código ya pertenece al producto: ${existing.name}`);
+      } else {
+        setDuplicateMessage(null);
+      }
+    } catch {
+      setDuplicateMessage(null);
+    }
+  };
+
+  const handleScan = (code: string) => {
+    const trimmed = code.trim();
+    setForm((prev) => ({ ...prev, barcode: trimmed }));
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.barcode;
+      return next;
+    });
+    vibrate(50);
+    playBeep();
+    void checkBarcodeOwnership(trimmed);
+  };
 
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -154,20 +199,44 @@ export const ProductForm = () => {
                 <label htmlFor="barcode" className="block text-sm font-medium text-slate-700">
                   Código de barras <span className="text-xs font-normal text-slate-400">(opcional)</span>
                 </label>
-                <input
-                  id="barcode"
-                  name="barcode"
-                  type="text"
-                  value={form.barcode}
-                  onChange={(e) => set("barcode", e.target.value)}
-                  maxLength={50}
-                  pattern={BARCODE_PATTERN}
-                  autoComplete="off"
-                  title="Letras, dígitos, punto, guion bajo, guion."
-                  className={`${inputClass(Boolean(fieldErrors.barcode))} font-mono text-sm`}
-                />
+                <div className="flex gap-2">
+                  <input
+                    id="barcode"
+                    name="barcode"
+                    ref={barcodeRef}
+                    type="text"
+                    value={form.barcode}
+                    onChange={(e) => {
+                      set("barcode", e.target.value);
+                      if (duplicateMessage) setDuplicateMessage(null);
+                    }}
+                    onBlur={(e) => void checkBarcodeOwnership(e.target.value)}
+                    maxLength={50}
+                    pattern={BARCODE_PATTERN}
+                    autoComplete="off"
+                    title="Letras, dígitos, punto, guion bajo, guion."
+                    className={`${inputClass(Boolean(fieldErrors.barcode) || Boolean(duplicateMessage))} font-mono text-sm`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setScannerOpen(true)}
+                    aria-label="Escanear código de barras con la cámara"
+                    title="Escanear con cámara"
+                    className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  >
+                    <Camera className="h-5 w-5" />
+                  </button>
+                </div>
                 {fieldErrors.barcode && (
                   <p className="mt-1 text-sm text-rose-500">{fieldErrors.barcode}</p>
+                )}
+                {!fieldErrors.barcode && duplicateMessage && (
+                  <p className="mt-1 text-sm text-rose-500">{duplicateMessage}</p>
+                )}
+                {!fieldErrors.barcode && !duplicateMessage && (
+                  <p className="text-xs text-slate-500">
+                    Usa el botón de cámara o un lector físico para capturarlo.
+                  </p>
                 )}
               </div>
 
@@ -325,6 +394,13 @@ export const ProductForm = () => {
           )}
         </div>
       </div>
+
+      <CameraScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleScan}
+        title="Escanear código de barras"
+      />
     </div>
   );
 };

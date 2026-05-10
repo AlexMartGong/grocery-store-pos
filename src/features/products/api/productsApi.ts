@@ -1,3 +1,4 @@
+import axios from "axios";
 import { apiClient } from "../../../shared/api/api";
 import type { PageResponse } from "../../../shared/types";
 import type {
@@ -52,4 +53,16 @@ export async function updateProductPrices(
 
 export async function deleteProduct(id: string): Promise<void> {
   await apiClient.delete(`/products/${id}`);
+}
+
+export async function searchByBarcode(barcode: string): Promise<ProductResponse | null> {
+  try {
+    const res = await apiClient.get<ProductResponse>("/products/search", {
+      params: { barcode },
+    });
+    return res.data;
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 404) return null;
+    throw err;
+  }
 }

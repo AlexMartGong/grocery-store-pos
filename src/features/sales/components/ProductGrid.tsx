@@ -1,4 +1,4 @@
-import { AlertCircle, AlertTriangle, PackageSearch, Search } from "lucide-react";
+import { AlertCircle, AlertTriangle, Camera, PackageSearch, Search } from "lucide-react";
 import { usePosProducts } from "../hooks/usePosProducts";
 import type { ProductResponse } from "../../products/types";
 import { formatMoney, getInitials, pastelColorFromId } from "../utils/format";
@@ -93,28 +93,43 @@ const SkeletonCard = () => (
 
 interface ProductGridProps {
   onProductClick: (product: ProductResponse) => void;
+  onOpenCameraScanner?: () => void;
 }
 
-export const ProductGrid = ({ onProductClick }: ProductGridProps) => {
+export const ProductGrid = ({ onProductClick, onOpenCameraScanner }: ProductGridProps) => {
   const { products, loading, error, searchInput, setSearchInput } = usePosProducts();
 
   return (
     <div className="flex h-full flex-col">
       <div className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/90 px-4 py-3 backdrop-blur md:px-6 md:py-4">
-        <div className="relative">
-          <Search
-            aria-hidden
-            className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            type="search"
-            autoFocus
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Buscar por nombre o código de barras..."
-            aria-label="Buscar producto por nombre o código de barras"
-            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-base shadow-sm transition-all placeholder:text-slate-400 focus-visible:border-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="search"
+              autoFocus
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Buscar por nombre o código de barras..."
+              aria-label="Buscar producto por nombre o código de barras"
+              data-allow-scanner="true"
+              className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-base shadow-sm transition-all placeholder:text-slate-400 focus-visible:border-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200"
+            />
+          </div>
+          {onOpenCameraScanner && (
+            <button
+              type="button"
+              onClick={onOpenCameraScanner}
+              aria-label="Escanear código con la cámara"
+              title="Escanear con cámara"
+              className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+            >
+              <Camera aria-hidden className="h-5 w-5" />
+            </button>
+          )}
         </div>
       </div>
 

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { CheckCircle2, ShoppingBag } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { AlertCircle, CheckCircle2, ShoppingBag } from "lucide-react";
 import { ProductGrid } from "./ProductGrid";
 import { CartSidebar } from "./CartSidebar";
 import { CheckoutModal } from "./CheckoutModal";
@@ -9,6 +9,10 @@ import { useCartItemCount, useCartTotal, usePosStore } from "../store/posStore";
 import { formatMoney, formatSaleId } from "../utils/format";
 import type { CartItem, SaleResponse } from "../types";
 import type { ProductResponse } from "../../products/types";
+import { searchByBarcode } from "../../products/api/productsApi";
+import { useBarcodeScanner } from "../../../shared/hooks/useBarcodeScanner";
+import { CameraScannerModal } from "../../../shared/components/scanner/CameraScannerModal";
+import { playBeep, playErrorBeep, vibrate } from "../../../shared/utils/feedback";
 
 export const PosScreen = () => {
   const itemCount = useCartItemCount();
@@ -23,6 +27,8 @@ export const PosScreen = () => {
   const [toastVisible, setToastVisible] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [kiloProduct, setKiloProduct] = useState<ProductResponse | null>(null);
+  const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!cartDrawerOpen) return;
@@ -38,6 +44,57 @@ export const PosScreen = () => {
     const t = setTimeout(() => setToastVisible(false), 6000);
     return () => clearTimeout(t);
   }, [toastVisible]);
+
+  useEffect(() => {
+    if (!scanError) return;
+    const t = setTimeout(() => setScanError(null), 4000);
+    return () => clearTimeout(t);
+  }, [scanError]);
+
+  const handleScan = useCallback(
+    async (code: string) => {
+      const trimmed = code.trim();
+      if (!trimmed) return;
+      try {
+        const product = await searchByBarcode(trimmed);
+        if (!product) {
+          playErrorBeep();
+          vibrate([60, 50, 60]);
+          setScanError(`Código "${trimmed}" no encontrado en el catálogo.`);
+          return;
+        }
+        if (!product.active || Number(product.current_stock) <= 0) {
+          playErrorBeep();
+          vibrate([60, 50, 60]);
+          setScanError(
+            !product.active
+              ? `"${product.name}" está inactivo.`
+              : `"${product.name}" sin existencias.`,
+          );
+          return;
+        }
+        playBeep();
+        vibrate(50);
+        if (product.unit_of_measure === "KILO") {
+          setKiloProduct(product);
+        } else {
+          addItem({
+            id: product.id,
+            name: product.name,
+            barcode: product.barcode,
+            sale_price: product.sale_price,
+            unit_of_measure: product.unit_of_measure,
+          });
+        }
+      } catch {
+        playErrorBeep();
+        setScanError("No se pudo consultar el código. Revisa tu conexión.");
+      }
+    },
+    [addItem],
+  );
+
+  useBarcodeScanner({ onScan: handleScan, enabled: !cameraScannerOpen });
 
   const openCheckout = () => {
     setCartDrawerOpen(false);
@@ -69,7 +126,10 @@ export const PosScreen = () => {
   return (
     <div className="-m-6 flex h-[calc(100vh-4rem)] flex-col bg-slate-50 md:-m-8 md:flex-row">
       <section className="relative flex-1 overflow-hidden">
-        <ProductGrid onProductClick={handleProductClick} />
+        <ProductGrid
+          onProductClick={handleProductClick}
+          onOpenCameraScanner={() => setCameraScannerOpen(true)}
+        />
       </section>
 
       <aside className="hidden w-96 shrink-0 border-l border-slate-200 md:flex md:flex-col">
@@ -154,6 +214,26 @@ export const PosScreen = () => {
         unitOfMeasure="KILO"
         productName={kiloProduct?.name ?? ""}
       />
+
+      <CameraScannerModal
+        open={cameraScannerOpen}
+        onClose={() => setCameraScannerOpen(false)}
+        onScan={(code) => {
+          void handleScan(code);
+        }}
+        title="Escanear producto"
+      />
+
+      {scanError && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed left-4 right-4 top-4 z-50 mx-auto flex max-w-sm items-start gap-3 rounded-xl bg-rose-600 px-4 py-3 text-white shadow-lg sm:left-auto sm:right-4"
+        >
+          <AlertCircle aria-hidden className="mt-0.5 h-5 w-5 shrink-0" />
+          <p className="text-sm font-medium">{scanError}</p>
+        </div>
+      )}
 
       {toastVisible && lastSale && (
         <div
