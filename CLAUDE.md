@@ -1,163 +1,130 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with the frontend code of the `grocery-store`
-POS/SaaS repository.
+Guidance for Claude Code on the `grocery-store` POS/SaaS frontend.
 
-> **Companion file:** [`AGENTS.md`](./AGENTS.md) holds the same engineering rules for non-Claude agents
-> (Cursor, Copilot, etc.). **Keep both files byte-for-byte equivalent below the title block** — every edit
-> here MUST be mirrored there in the same commit. User-facing setup/quickstart lives in
-> [`README.md`](./README.md); this file is the engineering rulebook.
+> **Companion file:** [`AGENTS.md`](./AGENTS.md) holds the same rules for non-Claude agents. **Keep both
+> files byte-for-byte equivalent below the title block** — every edit here MUST be mirrored there in the
+> same commit. User setup lives in [`README.md`](./README.md); this file is the engineering rulebook.
 
 ## 0. Commands
 
 | Command         | Purpose                                                              |
 |-----------------|----------------------------------------------------------------------|
 | `pnpm install`  | Install dependencies (Node ≥ 20, **pnpm ≥ 9** required)              |
-| `pnpm dev`      | Vite dev server with HMR; the `--host` flag exposes it on the LAN    |
+| `pnpm dev`      | Vite dev server with HMR; `--host` exposes it on the LAN             |
 | `pnpm build`    | `tsc -b && vite build` — strict type-check + production bundle       |
 | `pnpm lint`     | ESLint over the whole repo                                           |
 | `pnpm preview`  | Serve the production build locally                                   |
 
-**No test runner is configured.** Verification baseline: `pnpm lint && pnpm build`, then `pnpm dev` for
-manual UI checks against a running backend.
+**No test runner.** Verification baseline: `pnpm lint && pnpm build`, then `pnpm dev` for manual UI checks.
 
-**Package manager — pnpm only.** `pnpm-lock.yaml` is the source of truth. Never run `npm install` /
-`yarn` / `npm run …` — they will desynchronize the lockfile and may pull mismatched transitive versions.
+**Package manager — pnpm only.** `pnpm-lock.yaml` is source of truth. Never run `npm install` / `yarn` /
+`npm run …` — desyncs lockfile and pulls mismatched transitive versions.
 
-**Environment.** Copy `.env.example` → `.env` once; the only variable is `VITE_API_URL`
-(default `http://localhost:8080`). The `/api/v1` prefix is appended by `apiClient` — do not include
-it in the env value or in feature API paths.
+**Environment.** Copy `.env.example` → `.env`; only var is `VITE_API_URL` (default `http://localhost:8080`).
+The `/api/v1` prefix is appended by `apiClient` — do not include it in the env value or feature paths.
 
-## 1. Role
+## 1. Stack & Role
 
-Act as a **Senior Frontend Engineer** specialized in React 19, TypeScript 6, and modern UI architectures. You are the
-counterpart to the backend team, ensuring seamless integration, high performance, and exceptional user experience (UX)
-for the POS system.
+Senior Frontend Engineer building a multi-tenant POS SPA.
 
-## 2. Context
+- **Framework:** React 19 + TypeScript 6 via Vite 8.
+- **Styling:** Tailwind CSS v4 (CSS-first engine, no `tailwind.config.js`).
+- **State:** Zustand 5. **Routing:** React Router DOM v7. **HTTP:** Axios.
+- **Backend:** Spring Boot 4.0 (Java 21) REST API, JWT auth, RBAC (Store Users vs SaaS Admins),
+  ProblemDetails/ErrorResponse error structures.
+- Two auth flows: `OWNER`/`CASHIER` vs `SUPER_ADMIN`. Highly responsive POS UI.
 
-You are developing the frontend for the `grocery-store` SaaS project (a multi-tenant POS system).
-**Base framework:** React 19 + TypeScript 6 via Vite 8.
-**Styling:** Tailwind CSS v4 (CSS-first engine).
-**State & Routing:** Zustand 5 for global state, React Router DOM v7 for routing.
-**API Client:** Axios.
-**Integration:** The backend is a Spring Boot 4.0 (Java 21) REST API that strictly enforces JWT authentication,
-role-based access control (Store Users vs. SaaS Admins), and robust error structures (ProblemDetails/ErrorResponse).
-
-## 3. Task
-
-Your task is to build and maintain a modular, scalable, and type-safe Single Page Application (SPA). You must consume
-the backend APIs efficiently, manage complex forms and validations, handle two separate authentication flows (`OWNER`/
-`CASHIER` vs `SUPER_ADMIN`), and implement offline-first or highly responsive POS features where necessary.
-
-## 4. Restrictions & Rules
+## 2. Restrictions & Rules
 
 ### Folder and Module Architecture
 
-Follow a **Feature-Driven (Domain) Architecture** aligned with the backend modules.
+Feature-Driven (Domain) Architecture aligned with backend modules.
 
-- `src/features/<feature-name>`: Isolate components, hooks, stores, and API calls per domain (e.g., `admin`, `stores`,
-  `users`, `products`, `sales`).
-- `src/shared/`: For global UI components, utilities, and generic hooks.
-- `src/routes/`: For global route definitions mapping to feature pages.
+- `src/features/<feature-name>` — components, hooks, stores, API per domain (`admin`, `stores`, `users`,
+  `products`, `sales`, `customers`, `cash`).
+- `src/shared/` — global UI components, utilities, generic hooks.
+- `src/routes/` — route definitions mapping to feature pages.
 
-### State Administration and UI
+### State & UI
 
-- **Local vs Global:** Prioritize React local state (`useState`, `useReducer`). Use Zustand *only* for globally shared
-  state (e.g., Current POS Cart, Authenticated User Session, Theme).
-- **Persistence:** When a Zustand slice must survive reload (e.g., auth session), use the `persist` middleware with
-  `partialize` to whitelist only the persisted keys. Re-validate derived flags (e.g., `isAuthenticated`,
-  token expiry) inside `onRehydrateStorage` — never trust the persisted flag directly. **Additionally**, always
-  reassign `state.user = toAuthUser(decoded, state.user?.username ?? "")` inside `onRehydrateStorage` after a
-  successful decode, so stale persisted payloads (e.g., from a previous type shape) are normalized on rehydrate.
-  Reference: `src/features/auth/store/authStore.ts`.
-- **Styling:** Use Tailwind CSS v4. Do **NOT** create or look for a `tailwind.config.js` file. All configuration and
-  custom variables must go into `src/index.css`.
-- **Icons:** Use `lucide-react` for iconography.
-- **Design System:** Strictly follow the design rules and component guidelines defined in the project's local skill:
-  `.claude/skills/frontend-design`.
-- **Mobile-First & Responsiveness:** All layouts and components MUST be designed mobile-first using Tailwind CSS. Use
-  `md:` and `lg:` prefixes to scale up for tablet and desktop views. Concrete rules:
-    - Feature page roots must NOT repeat `min-h-screen bg-slate-50` — `AdminLayout`'s `<main>` already provides it.
-      Start page wrappers with `px-4 py-8` only.
-    - Card/panel padding must use responsive progression: `p-4 md:p-8`, never a flat `p-8`.
-    - Action headers (title + CTA button) must use `flex flex-wrap` so they reflow on narrow screens.
-    - **Data tables:** wrap the table in `<div className="hidden md:block ...">` and add a
-      `<ul className="... md:hidden">`
-      card list for mobile. Cards show essential fields only (code, name, status, actions); defer secondary columns
-      (owner, phone, date) to the desktop table.
-    - **Touch targets:** all standalone interactive elements must be at minimum `py-2.5` (≈44 px). Navigation links
-      (`NavLink`) must use at least `py-3`. Never use `py-1` or `py-1.5` on buttons.
-- **Accessibility (a11y):** Strictly use semantic HTML (`<nav>`, `<main>`, `<aside>`, `<header>`). Always include
-  appropriate ARIA attributes (`aria-label`, `aria-expanded`, `aria-hidden`) for interactive or collapsible elements
-  (e.g., mobile menus, modals, dropdowns). Ensure components are keyboard navigable and maintain visible focus states.
-  Concrete rules:
-    - Every button, link, and input must carry
-      `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-<color>`
-      so keyboard users always see a visible focus indicator.
-    - Pagination controls must have descriptive `aria-label` values:
-      `aria-label="Go to previous page"` / `aria-label="Go to next page"`.
-    - **Never use `window.confirm()`** for destructive actions. Use an inline confirmation UI (an extra state key +
-      a confirmation row/card) so screen readers can announce the prompt and keyboard users can respond.
-    - Slide-in drawers (mobile sidebar) must close on `Escape` via a `useEffect` that attaches a `keydown` listener
-      only while the drawer is open, and cleans up on close or unmount.
+- **Local vs Global:** Prefer `useState`/`useReducer`. Zustand only for shared state (POS Cart, Auth Session, Theme).
+- **Persistence:** Zustand `persist` middleware with `partialize` to whitelist persisted keys. Re-validate
+  derived flags inside `onRehydrateStorage` — never trust persisted flag directly. Always reassign
+  `state.user = toAuthUser(decoded, state.user?.username ?? "")` after successful decode to normalize
+  stale persisted payloads. Reference: `src/features/auth/store/authStore.ts`.
+- **Tailwind v4:** All custom variables go in `src/index.css`. Do **not** create `tailwind.config.js`.
+- **Icons:** `lucide-react`.
+- **Design System:** Follow `.claude/skills/frontend-design`.
+- **Mobile-First & Responsiveness:**
+    - Page roots must NOT repeat `min-h-screen bg-slate-50` — `AdminLayout`/`StoreLayout` `<main>` provides it.
+      Page wrappers start with `px-4 py-8` only.
+    - Card/panel padding: `p-4 md:p-8`, never flat `p-8`.
+    - Action headers (title + CTA): `flex flex-wrap` so they reflow on narrow screens.
+    - **Data tables:** wrap table in `<div className="hidden md:block ...">` and add a
+      `<ul className="... md:hidden">` card list for mobile. Mobile cards show essentials only
+      (code, name, status, actions); defer secondary columns (owner, phone, date) to desktop.
+    - **Touch targets:** standalone interactive elements minimum `py-2.5` (≈44 px). `NavLink` minimum `py-3`.
+      Never use `py-1` / `py-1.5` on buttons.
+- **Accessibility (a11y):** Semantic HTML (`<nav>`, `<main>`, `<aside>`, `<header>`). ARIA attrs
+  (`aria-label`, `aria-expanded`, `aria-hidden`) on interactive/collapsible elements. Keyboard navigable,
+  visible focus.
+    - Every button/link/input: `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-<color>`.
+    - Pagination controls: `aria-label="Go to previous page"` / `aria-label="Go to next page"`.
+    - **Never `window.confirm()`** for destructive actions. Use inline confirmation UI (state key +
+      confirmation row/card) so screen readers announce and keyboard users can respond.
+    - Slide-in drawers close on `Escape` via `useEffect` attaching `keydown` only while open, cleaned up
+      on close/unmount.
 
-### Integration and APIs (Axios)
+### Integration & APIs (Axios)
 
-- **Base URL:** The Axios instance reads from `import.meta.env.VITE_API_URL` (fallback `http://localhost:8080`) and
-  bakes the `/api/v1` prefix into `baseURL`. Feature code uses clean paths like `/auth/login`, `/products`, etc.
-  Configure the env via `.env` at the repo root (see `.env.example`).
+- **Base URL:** Axios reads `import.meta.env.VITE_API_URL` (fallback `http://localhost:8080`) and bakes
+  `/api/v1` into `baseURL`. Feature paths are clean (`/auth/login`, `/products`, etc.).
 - **Auth endpoints:** `POST /auth/login` (store users, body `{ storeCode, username, password }`) and
-  `POST /admin/login` (SaaS admins, body `{ username, password }`).
-- **storeCode vs storeId:** The store login *request body* uses `storeCode` (string, e.g., `"STORE001"`).
-  The decoded JWT *claims* use `storeId` (UUID **string**) plus `userId` (UUID **string**), `role`, `sub`, `iss`,
-  `iat`, `exp`. Do not confuse the two: never send `storeId` to login, never send `storeCode` to authenticated
-  endpoints. **Do NOT type `storeId`/`userId`/`adminId` as `number`** — the backend emits them via
-  `uuid.toString()`.
-- **TypeScript DTOs:** Never use `any`. Always define strict TypeScript `interfaces` or `types` that perfectly match the
-  backend DTOs (`PageResponse<T>`, `ErrorResponse`, etc.).
-- **Auth Interceptors:** Implement Axios interceptors to automatically attach the JWT token. The interceptor reads
-  the token via `useAuthStore.getState().token` (no React binding, no circular import). On `401`, the response
-  interceptor calls `useAuthStore.getState().logout()` for a silent global session clear.
-- **Token Decoding:** Store tokens contain `storeId` (UUID string), `userId` (UUID string), `role`; admin tokens
-  contain `adminId` (UUID string), `role`. Never send `storeId` in admin API requests. `DecodedToken` and `AuthUser`
-  in `src/features/auth/types/index.ts` type these as `?: string`.
-- **Error Handling:** Map backend HTTP statuses and `error` codes to user-friendly UI states. Common codes:
-  `invalid_credentials`, `store_inactive`, `store_not_found`, `validation_failed` (auth); `store_code_taken`
-  (stores conflict — not the generic `conflict` code). Use `mapAuthError(err)` from
-  `src/features/auth/utils/errorMessages.ts` for auth flows. For other features, create a per-feature
-  `mapXxxError` following the same `Record<errorCode, message>` + `axios.isAxiosError` shape (see
-  `src/features/stores/utils/errorMessages.ts` as the reference implementation).
-- **No Business Logic Duplication:** Rely on the backend as the source of truth for calculations, taxes, and complex
-  validations.
+  `POST /admin/login` (admins, body `{ username, password }`).
+- **storeCode vs storeId / IDs as string:** Login *body* uses `storeCode` (string, e.g., `"STORE001"`).
+  JWT *claims* use `storeId` (UUID string), `userId` (UUID string), `role`, `sub`, `iss`, `iat`, `exp`.
+  Admin tokens carry `adminId` (UUID string) + `role`. Never send `storeCode` to authenticated endpoints,
+  never send `storeId` to admin requests. **Do NOT type `storeId`/`userId`/`adminId` as `number`** — backend
+  emits via `uuid.toString()`. `DecodedToken` and `AuthUser` in `src/features/auth/types/index.ts` type
+  these as `?: string`.
+- **TypeScript DTOs:** Never `any`. Strict `interface`/`type` matching backend DTOs (`PageResponse<T>`,
+  `ErrorResponse`, etc.).
+- **Auth Interceptors:** Axios interceptors auto-attach JWT. Read token via
+  `useAuthStore.getState().token` (no React binding, no circular import). On `401`, response interceptor
+  calls `useAuthStore.getState().logout()` for silent global session clear.
+- **Error Handling:** Map HTTP statuses + `error` codes to user-friendly UI. Common: `invalid_credentials`,
+  `store_inactive`, `store_not_found`, `validation_failed` (auth); `store_code_taken` (stores conflict —
+  not generic `conflict`). Use `mapAuthError(err)` from `src/features/auth/utils/errorMessages.ts` for auth.
+  Other features create per-feature `mapXxxError` following the same `Record<errorCode, message>` +
+  `axios.isAxiosError` shape (reference: `src/features/stores/utils/errorMessages.ts`).
+- **No Business Logic Duplication:** Backend is source of truth for calculations, taxes, validations.
 
 ### SOLID & Clean Code
 
-- **Single Responsibility:** Keep components small. If a component exceeds 150-200 lines, extract its logic into custom
-  hooks.
-- **Strict Typing:** No implicit anys. Enable strict mode in `tsconfig.json`.
-- **Modern React 19 Imports & Deprecation Checks:** Always verify that imported types, variables, and hooks are not
-  deprecated. Do not use namespace imports for React types (AVOID `icon: React.ReactNode;`). Strictly use named imports
-  directly from React (e.g., `import { ReactNode, SyntheticEvent } from 'react';`). **Crucial for Forms:** The
-  `FormEvent` type is inaccurate/deprecated for native events in React 19; for form submissions (`onSubmit`), you MUST
-  use `SyntheticEvent` (e.g., `e: SyntheticEvent<HTMLFormElement, SubmitEvent>`) instead of `FormEvent`.
+- **SRP:** Components small. Above 150–200 lines, extract logic into custom hooks.
+- **Strict typing:** No implicit any. `tsconfig.json` strict mode on.
+- **React 19 imports:** No namespace imports for React types (avoid `icon: React.ReactNode;`). Use named
+  imports (`import { ReactNode, SyntheticEvent } from 'react';`). **Forms:** `FormEvent` is deprecated
+  for native events in React 19 — for `onSubmit`, use `SyntheticEvent` (e.g.,
+  `e: SyntheticEvent<HTMLFormElement, SubmitEvent>`).
 
-## 5. Established Conventions (reuse, do not reinvent)
+## 3. Established Conventions (reuse, do not reinvent)
 
-The `auth` and `stores` modules set the architectural precedent. Subsequent feature modules MUST reuse these primitives:
+`auth` and `stores` modules set the precedent. Subsequent features MUST reuse these primitives:
 
-- **Axios client:** `src/shared/api/api.ts` exports `apiClient`. All feature API services import this — do **not**
-  create per-feature Axios instances. Interceptors (auth header, 401 → logout) are already wired here.
+- **Axios client:** `src/shared/api/api.ts` exports `apiClient`. All feature APIs import this — no
+  per-feature Axios instances. Auth header + 401→logout interceptors already wired.
 - **Auth session store:** `src/features/auth/store/authStore.ts` exports `useAuthStore` with shape
-  `{ token, user, isAuthenticated, setToken, logout }`. Read role/IDs via `useAuthStore((s) => s.user)`.
-- **Shared types:** `src/shared/types/index.ts` exports `PageResponse<T>`. Import from here for all paginated
-  list responses — do not redefine it per feature.
-- **Error mapping:** `src/features/auth/utils/errorMessages.ts` exports `mapAuthError(err)`. Each feature defines
-  its own `mapXxxError` following the same `Record<errorCode, message>` + `axios.isAxiosError` shape:
+  `{ token, user, isAuthenticated, setToken, logout }`. Read via `useAuthStore((s) => s.user)`.
+- **Shared types:** `src/shared/types/index.ts` exports `PageResponse<T>`. Import for all paginated
+  responses — do not redefine per feature.
+- **Error mapping:** `src/features/auth/utils/errorMessages.ts` exports `mapAuthError(err)`. Each feature
+  defines its own `mapXxxError`:
     - `mapStoresError` — `src/features/stores/utils/errorMessages.ts`
     - `mapAdminProvisioningError` — `src/features/admin/utils/errorMessages.ts`
-    - `mapUsersError` — `src/features/users/utils/errorMessages.ts` (codes: `username_taken`, `user_not_found`,
-      `validation_failed`, `forbidden`)
+    - `mapUsersError` — `src/features/users/utils/errorMessages.ts` (codes: `username_taken`,
+      `user_not_found`, `validation_failed`, `forbidden`)
     - `mapCustomersError` — `src/features/customers/utils/errorMessages.ts` (codes: `customer_not_found`,
       `validation_failed`, `forbidden`)
     - `mapSalesError` — `src/features/sales/utils/errorMessages.ts` (codes: `invalid_mixed_payment`,
@@ -165,29 +132,30 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
       `validation_failed`, `forbidden`)
     - `mapCashShiftError` — `src/features/cash/utils/errorMessages.ts` (codes: `shift_already_open`,
       `open_shift_not_found`, `validation_failed`, `forbidden`)
-      Never add unrelated error codes to another feature's map.
-- **Field-level error state:** When a form submits to a backend endpoint that returns `400` with
-  `{ error: "validation_failed", fields: Record<string, string> }`, capture field errors in a separate
-  `const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})` state. In the catch block:
+
+  Never add unrelated error codes to another feature's map.
+- **Field-level error state:** When endpoint returns `400` `{ error: "validation_failed", fields:
+  Record<string, string> }`, capture in
+  `const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})`. In catch:
   `if (axios.isAxiosError<ApiErrorResponse>(err) && err.response?.data?.fields) setFieldErrors(err.response.data.fields)`.
-  The backend `Map<String, String>` arrives as `Record<string, string>` — no transformation needed. Always
-  clear with `setFieldErrors({})` at the start of each submission. Render field errors inline below the
-  relevant `<input>` as `<p className="text-rose-500 text-sm mt-1">`. Use an `inputClass(hasError: boolean)`
-  helper to toggle `border-rose-500 focus:border-rose-500 focus:ring-rose-300/40` vs the default border/ring.
-  Reference: `src/features/admin/components/ProvisionOwnerForm.tsx`.
-- **Token utilities:** `src/features/auth/utils/token.ts` — `decodeToken`, `isExpired`, `toAuthUser`. Reuse for any
-  token-related logic; do not call `jwtDecode` directly elsewhere.
-- **Route guards:** Three guards exist in `src/routes/guards/`:
+  Backend `Map<String, String>` arrives as `Record<string, string>` — no transform. Clear with
+  `setFieldErrors({})` at start of each submit. Render inline below `<input>` as
+  `<p className="text-rose-500 text-sm mt-1">`. Use `inputClass(hasError: boolean)` to toggle
+  `border-rose-500 focus:border-rose-500 focus:ring-rose-300/40`. Reference:
+  `src/features/admin/components/ProvisionOwnerForm.tsx`.
+- **Token utilities:** `src/features/auth/utils/token.ts` — `decodeToken`, `isExpired`, `toAuthUser`. Reuse;
+  do not call `jwtDecode` directly elsewhere.
+- **Route guards:** Three guards in `src/routes/guards/`:
     - `AdminGuard` — `SUPER_ADMIN` only; unauthenticated → `/admin/login`, wrong role → `/login`.
-    - `StoreGuard` — `OWNER` or `CASHIER`; anything else → `/login`. Accepts optional `children` prop to wrap a
-      layout element (mirrors `AdminGuard`).
-    - `OwnerGuard` — `OWNER` only; CASHIER → `/pos` (they are authenticated, just not authorized for this section);
-      unauthenticated or other → `/login`. Used as a layout route (no `children` prop, renders `<Outlet />`).
-      Pattern: read `isAuthenticated` + `user.role` from `useAuthStore`, return `<Navigate replace>` synchronously on
-      failure. **Never** use `useEffect + navigate` for auth redirects.
-- **Post-login navigation:** Redirect targets live in hooks (`src/features/auth/hooks/useLogin.ts`), not in
+    - `StoreGuard` — `OWNER` or `CASHIER`; else → `/login`. Accepts optional `children` prop (mirrors `AdminGuard`).
+    - `OwnerGuard` — `OWNER` only; CASHIER → `/pos`; unauthenticated/other → `/login`. Used as layout
+      route (no `children`, renders `<Outlet />`).
+
+  Pattern: read `isAuthenticated` + `user.role` from `useAuthStore`, return `<Navigate replace>`
+  synchronously on failure. **Never** `useEffect + navigate` for auth redirects.
+- **Post-login navigation:** Redirect targets in hooks (`src/features/auth/hooks/useLogin.ts`), not
   components. `useAdminLogin` → `/admin/stores`. `useStoreLogin` → `/pos`.
-- **Routing:** `src/routes/AppRouter.tsx` uses `createBrowserRouter` + `RouterProvider`. Current route map:
+- **Routing:** `src/routes/AppRouter.tsx` uses `createBrowserRouter` + `RouterProvider`. Route map:
     - `/login` — StoreLogin (public)
     - `/admin/login` — AdminLogin (public)
     - `/admin` — AdminGuard → AdminLayout (SUPER_ADMIN)
@@ -198,9 +166,9 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
     - `/pos` — StoreGuard → StoreLayout (OWNER / CASHIER)
         - `/pos` (index) — `<Navigate to="sales" replace />`
         - `/pos/sales` — PosScreen (cash register UI: catalog + cart + checkout)
-        - `/pos/sales-history` — SalesList (OWNER + CASHIER; paginated history, view + reprint tickets)
+        - `/pos/sales-history` — SalesList (OWNER + CASHIER; paginated history, view + reprint)
         - `/pos/products` — ProductsList (OWNER + CASHIER read; OWNER-only writes nested under OwnerGuard)
-        - `/pos/customers` — CustomersList (OWNER + CASHIER read/write — both roles can CRUD)
+        - `/pos/customers` — CustomersList (OWNER + CASHIER read/write)
         - `/pos/customers/new` — CustomerForm (create)
         - `/pos/customers/:id/edit` — CustomerForm (edit)
         - OwnerGuard (layout route, OWNER only)
@@ -210,196 +178,187 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
             - `/pos/products/new` — ProductForm (create)
             - `/pos/products/:id/edit` — ProductForm (edit)
     - `/` → redirect `/login` | `*` → redirect `/login`
-- **Feature folder layout:** `src/features/<domain>/{api,components,hooks,store,types,utils}`. Keep slices isolated;
-  cross-feature dependencies should go through `src/shared/`.
-- **Forms:** Use HTML5 native validation (`required`, `type="email"`, `pattern`, `maxLength`, etc.) for the MVP.
-  Promote to a validation library only when a feature genuinely needs cross-field rules.
-- **DTO immutability & minimal surface:** Some backend fields are immutable post-create (e.g., `Store.code`,
-  `User.username`). Exclude them from `UpdateXxxRequest` types and render them `disabled` in edit forms with a
-  visible "cannot be changed" hint. Additionally, keep `UpdateXxxRequest` to the minimum surface required by the
-  current UI — backend may accept more optional fields (e.g., `password`, `active` on `UpdateUserRequest`) that are
-  intentionally out of scope for a given flow; document the omission with a one-line comment in the types file so
-  future developers do not reinvent it.
-- **DTO field naming mirrors the wire format:** Match TypeScript field names to the JSON keys the backend
-  emits — do **NOT** introduce a camelCase ↔ snake_case translation layer. Backends with
-  `@JsonProperty(snake_case)` on their record DTOs (Products, Customers) must be mirrored with snake_case
-  keys in the matching TS `interface` (e.g., `full_name`, `credit_limit`, `outstanding_balance`,
-  `purchase_cost`). The `fields` map in `validation_failed` 400 responses uses the same snake_case keys, so
-  `fieldErrors.full_name` indexes directly without renaming. For backends that emit camelCase (Stores,
-  Users), keep camelCase in TS. Additionally, **derived/server-managed fields must be excluded from
-  `Create*` / `Update*` types** (e.g., `outstanding_balance` on `Customer` is mutated only by the
-  sales/payments flow — never present in the form, the state, or the DTO). References:
+- **Feature folder layout:** `src/features/<domain>/{api,components,hooks,store,types,utils}`. Cross-feature
+  deps go through `src/shared/`.
+- **Forms:** HTML5 native validation (`required`, `type="email"`, `pattern`, `maxLength`) for MVP. Promote
+  to a validation library only when cross-field rules are needed.
+- **DTO immutability & minimal surface:** Some fields are immutable post-create (`Store.code`,
+  `User.username`). Exclude from `UpdateXxxRequest`, render `disabled` in edit forms with "cannot be
+  changed" hint. Keep `UpdateXxxRequest` minimal — backend may accept more optional fields (e.g.,
+  `password`, `active` on `UpdateUserRequest`) intentionally out of scope; document the omission with a
+  one-line comment in the types file.
+- **DTO field naming mirrors wire format:** Match TS field names to backend JSON keys — no camelCase ↔
+  snake_case translation layer. Backends with `@JsonProperty(snake_case)` (Products, Customers) → snake_case
+  TS keys (`full_name`, `credit_limit`, `outstanding_balance`, `purchase_cost`). The `fields` map in
+  `validation_failed` uses the same keys, so `fieldErrors.full_name` indexes directly. Backends emitting
+  camelCase (Stores, Users) → camelCase in TS. **Derived/server-managed fields excluded from `Create*` /
+  `Update*` types** (e.g., `outstanding_balance` — mutated only by sales/payments). References:
   `src/features/customers/types/index.ts`, `src/features/products/types/index.ts`.
-- **BigDecimal as `string` in TS:** Backend monetary / decimal fields (`BigDecimal`) cross the wire as JSON
-  numbers but MUST be typed as `string` on the frontend to avoid float precision loss. Forms accept the
-  raw input as `string` and forward it unchanged in the request body — Jackson re-parses it back to
-  `BigDecimal` server-side. Format for display via `Intl.NumberFormat("es-MX", { style: "currency",
-  currency: "MXN" })` (helpers: `formatMoney` in `ProductsList.tsx` and `CustomersList.tsx`). Never call
-  `parseFloat` on these values for arithmetic that will be persisted; only convert with `Number()` for
-  display-only ratio checks (e.g., credit-usage thresholds).
-- **Layout nesting:** Both `AdminLayout` and `StoreLayout` (in `src/shared/components/layout/`) render
-  `<main className="flex-1 bg-slate-50 p-6 md:p-8">`. Feature pages rendered inside either must NOT add their own
-  `min-h-screen` or `bg-slate-50`. Page root div: `<div className="px-4 py-8">`.
-- **Responsive data tables:** data-heavy list pages use a two-view pattern —
-  `<div className="hidden md:block ..."><table>` for
-  desktop and `<ul className="md:hidden ...">` of `<li>` cards for mobile. Reference: `StoresList.tsx`.
-- **Inline destructive confirmation:** replace `window.confirm()` with local state (`confirmDeleteId: string | null`).
-  Render a confirmation row (table) or section (card) in-place. Confirm + Abort buttons must meet touch-target rules.
-  Reference: `StoresList.tsx`.
+- **BigDecimal as `string` in TS:** Backend monetary/decimal fields cross the wire as JSON numbers but MUST
+  be typed `string` in TS to avoid float precision loss. Forms accept raw input as `string` and forward
+  unchanged; Jackson re-parses to `BigDecimal` server-side. Format display via
+  `Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" })` (helpers: `formatMoney` in
+  `ProductsList.tsx`, `CustomersList.tsx`). Never `parseFloat` for arithmetic that will be persisted; use
+  `Number()` only for display-only ratio checks (e.g., credit-usage thresholds).
+- **Layout nesting:** `AdminLayout` and `StoreLayout` (in `src/shared/components/layout/`) render
+  `<main className="flex-1 bg-slate-50 p-6 md:p-8">`. Pages inside MUST NOT add `min-h-screen` or
+  `bg-slate-50`. Page root: `<div className="px-4 py-8">`.
+- **Responsive data tables:** `<div className="hidden md:block ..."><table>` desktop +
+  `<ul className="md:hidden ...">` of `<li>` cards mobile. Reference: `StoresList.tsx`.
+- **Inline destructive confirmation:** local state (`confirmDeleteId: string | null`) + in-place
+  confirmation row/card. Confirm + Abort buttons meet touch-target rules. Reference: `StoresList.tsx`.
 - **Threshold warning indicators (credit usage, low stock, etc.):** When a numeric value crosses a business
   threshold relative to a related limit (e.g., `outstanding_balance >= 0.9 * credit_limit`,
-  `current_stock <= minimum_stock`), the visual cue MUST combine **color + weight + icon + accessible text**
-  — never color alone (WCAG 1.4.1). Pattern: `text-rose-600 font-semibold` on the value cell +
-  `<AlertTriangle aria-hidden className="inline w-4 h-4 mr-1" />` + a `title=` (or `aria-label` on a badge)
-  describing the condition. Always guard ratio computations against divide-by-zero before applying the rule
-  (`if (limit <= 0) return false`) so a customer without a credit line is never marked. References:
-  `CustomersList.tsx` (`isHighCredit`), `ProductsList.tsx` (`stockBadge`).
-- **Mobile menu / drawer shared hook:** `src/shared/hooks/useMobileMenu.ts` exports `useMobileMenu()` (returns
-  `{ isMobileMenuOpen, setIsMobileMenuOpen, closeMenu }`) and `navLinkClass` (sidebar active/inactive CSS helper).
-  Any layout that has a slide-in sidebar **must** use this hook — do not inline the `useState` + `useEffect` again.
-  The hook attaches a `keydown` listener only while the drawer is open and cleans up on close/unmount (Escape closes
-  it). Reference: `AdminLayout.tsx`, `StoreLayout.tsx`.
-- **Debounce shared hook:** `src/shared/hooks/useDebounce.ts` exports `useDebounce<T>(value: T, delay: number): T`.
-  Use this for any debounced input (search bars, type-ahead). Do **not** inline `setTimeout` + `clearTimeout`
-  inside components or reinvent a per-feature debounce.
+  `current_stock <= minimum_stock`), the cue MUST combine **color + weight + icon + accessible text** —
+  never color alone (WCAG 1.4.1). Pattern: `text-rose-600 font-semibold` on the value cell +
+  `<AlertTriangle aria-hidden className="inline w-4 h-4 mr-1" />` + `title=` (or `aria-label` on a badge).
+  Guard ratio computations against divide-by-zero (`if (limit <= 0) return false`) so a customer without
+  credit is never marked. References: `CustomersList.tsx` (`isHighCredit`), `ProductsList.tsx` (`stockBadge`).
+- **Mobile menu / drawer shared hook:** `src/shared/hooks/useMobileMenu.ts` exports `useMobileMenu()`
+  (returns `{ isMobileMenuOpen, setIsMobileMenuOpen, closeMenu }`) and `navLinkClass`. Layouts with a
+  slide-in sidebar **must** use this hook — do not inline `useState` + `useEffect`. Hook attaches
+  `keydown` only while drawer open and cleans up (Escape closes). Reference: `AdminLayout.tsx`,
+  `StoreLayout.tsx`.
+- **Debounce shared hook:** `src/shared/hooks/useDebounce.ts` exports
+  `useDebounce<T>(value: T, delay: number): T`. Use for any debounced input. Do **not** inline
+  `setTimeout` + `clearTimeout` per feature.
 - **List search pattern (remote vs local):** Paginated server-side lists (Stores, Products, Customers) use
-  **remote** search — debounce the input via `useDebounce(searchInput, 400)`, pass
-  `debouncedSearch || undefined` as an optional `search?: string` argument to the API method (which forwards
-  it as the `search` query param), and add `debouncedSearch` to the `useCallback` deps of `load`. Reset to
-  page 0 with a dedicated `useEffect(() => { setPage(0); }, [debouncedSearch])` so a query never lands on
-  an out-of-range page. Small/per-tenant lists (Users) use **local** filter — plain `useState` with no
-  debounce, derive `filteredUsers` before the `return`, swap **both** `users.map` calls AND empty-state
-  `length === 0` checks to the filtered array. UI: relative wrapper with absolutely-positioned `Search`
-  icon (`aria-hidden`), `<input type="search">` carrying an explicit `aria-label` and a placeholder that
-  **names the searchable fields** (e.g., `"Buscar por nombre o código..."`,
-  `"Buscar por nombre o código de barras..."`, `"Buscar por nombre o teléfono..."`,
-  `"Buscar por nombre o usuario..."`). Filter row container must be `flex flex-wrap items-center gap-3` so
-  the search input reflows on mobile; the input wrapper uses `relative flex-1 min-w-48`. Backend `search`
-  is case-insensitive substring against: store `name`+`code`, product `name`+`barcode`, customer
+  **remote** search — debounce input via `useDebounce(searchInput, 400)`, pass `debouncedSearch ||
+  undefined` as optional `search?: string` to API method (forwarded as `search` query param), add
+  `debouncedSearch` to `useCallback` deps of `load`. Reset to page 0 with dedicated
+  `useEffect(() => { setPage(0); }, [debouncedSearch])` so a query never lands out-of-range.
+  Small/per-tenant lists (Users) use **local** filter — plain `useState`, no debounce, derive
+  `filteredUsers` before `return`, swap **both** `users.map` calls AND empty-state `length === 0` checks
+  to filtered array. UI: relative wrapper with absolute `Search` icon (`aria-hidden`),
+  `<input type="search">` with explicit `aria-label` + placeholder naming searchable fields (e.g.,
+  `"Buscar por nombre o código..."`, `"Buscar por nombre o código de barras..."`,
+  `"Buscar por nombre o teléfono..."`, `"Buscar por nombre o usuario..."`). Filter row container:
+  `flex flex-wrap items-center gap-3`; input wrapper: `relative flex-1 min-w-48`. Backend `search` is
+  case-insensitive substring on: store `name`+`code`, product `name`+`barcode`, customer
   `full_name`+`phone`. References: `StoresList.tsx`, `ProductsList.tsx`, `CustomersList.tsx` (remote);
   `UsersList.tsx` (local).
-- **Admin provisioning pattern:** One-shot admin endpoints (e.g., cold-start user creation) belong in
-  `src/features/admin/api/` and `src/features/admin/utils/`, not in generic user CRUD modules. The endpoint
+- **Admin provisioning pattern:** One-shot admin endpoints (cold-start user creation) belong in
+  `src/features/admin/api/` and `src/features/admin/utils/`, not generic user CRUD. Endpoint
   `POST /admin/stores/:storeId/users` is called via `provisionStoreOwner(storeId, data)` in
   `src/features/admin/api/adminProvisioningApi.ts`. Shared user types (`UserRole`, `UserResponse`,
-  `CreateUserRequest`) live in `src/features/users/types/index.ts`; `UserRole` is re-exported from
-  `src/features/auth/types` to maintain a single source of truth.
-- **Preventive vs reactive UX for action buttons:** Only disable action buttons based on the resource's own
-  status field (e.g., `disabled={s.status === "CANCELED"}`). Never infer the state of a *different* entity
-  from a related field — e.g., `Store.ownerName` is a billing contact string, not an indicator of whether
-  an `OWNER` user exists in the `users` table. For business-rule conflicts (e.g., `store_owner_exists`),
-  rely on the backend 409 response and surface it in the form's error alert. Include an informative
-  `title` / `aria-label` on disabled buttons explaining why they are disabled.
-- **Regex `pattern` attribute safety:** When writing character classes in HTML `pattern` attributes or
-  JS `RegExp` strings, always place the hyphen at the start or end of the class to avoid ambiguous range
-  interpretation: use `[-a-zA-Z0-9._]`, never `[a-zA-Z0-9._-]`.
-- **Self-action protection (hide, not disable):** When a list allows deleting or deactivating a resource that
-  could be the currently logged-in user, **hide** the destructive action button entirely on that row — do not
-  disable it. Compare `resource.id === useAuthStore((s) => s.user?.userId)` (string equality after the UUID fix).
-  Reference: `src/features/users/components/UsersList.tsx`.
+  `CreateUserRequest`) live in `src/features/users/types/index.ts`; `UserRole` re-exported from
+  `src/features/auth/types`.
+- **Preventive vs reactive UX for action buttons:** Disable action buttons only based on the resource's own
+  status field (e.g., `disabled={s.status === "CANCELED"}`). Never infer state of a *different* entity
+  from a related field — `Store.ownerName` is a billing contact string, not an indicator of whether an
+  `OWNER` user exists. For business-rule conflicts (e.g., `store_owner_exists`), rely on the backend 409
+  and surface in the form's error alert. Add informative `title` / `aria-label` on disabled buttons.
+- **Regex `pattern` safety:** In HTML `pattern` attrs and JS `RegExp` strings, place hyphen at start or end
+  of character class to avoid ambiguous range: use `[-a-zA-Z0-9._]`, never `[a-zA-Z0-9._-]`.
+- **Self-action protection (hide, not disable):** When a list allows deleting/deactivating a resource that
+  could be the logged-in user, **hide** the destructive button on that row — do not disable. Compare
+  `resource.id === useAuthStore((s) => s.user?.userId)` (string equality after UUID fix). Reference:
+  `src/features/users/components/UsersList.tsx`.
 - **Hide actions already in target state:** Soft-delete endpoints (e.g., `DELETE /customers/:id` flips
-  `active=false`) are idempotent on the backend; rendering a disabled "Desactivar" button on a row that is
-  already inactive pollutes the UI with unactionable controls. Pattern: gate the action with
-  `{c.active && (<button …>Desactivar</button>)}` rather than `disabled={!c.active}`. The Edit button stays
-  visible because data correction (and eventually reactivation) is still useful on inactive rows.
-  Reference: `src/features/customers/components/CustomersList.tsx`.
-- **Distinct sidebar icons per nav target:** Every `NavLink` in a layout sidebar must use a **visually
-  distinct** lucide icon. Reusing the same glyph for two destinations (e.g., `Users` for both staff and
-  customers) creates ambiguity for OWNER who sees both links. Current assignments in `StoreLayout.tsx`:
-  `ShoppingCart` → `/pos/sales` (POS), `ListOrdered` → `/pos/sales-history` (Historial), `Package` → Productos,
-  `UserRound` → Clientes, `Users` → Usuarios (staff). When adding a new nav target, pick a glyph not already in
-  the current sidebar.
+  `active=false`) are idempotent on the backend. Pattern: gate with
+  `{c.active && (<button …>Desactivar</button>)}` rather than `disabled={!c.active}`. Edit button stays
+  visible because data correction (and reactivation) is still useful on inactive rows. Reference:
+  `src/features/customers/components/CustomersList.tsx`.
+- **Distinct sidebar icons per nav target:** Every `NavLink` uses a visually distinct lucide icon. Current
+  in `StoreLayout.tsx`: `ShoppingCart` → `/pos/sales`, `ListOrdered` → `/pos/sales-history`, `Package` →
+  Productos, `UserRound` → Clientes, `Users` → Usuarios (staff). New nav targets must pick a glyph not
+  already used.
 
 - **POS / sales module (`/pos/sales`):** Cash register UI lives in `src/features/sales/`. Reusable parts:
     - **Cart store (`src/features/sales/store/posStore.ts`):** `usePosStore` exposes
       `{ cart, selectedCustomerId, addItem, updateItemQuantity, removeItem, setCustomer, clearCart }`.
-      Selectors `useCartTotal()` and `useCartItemCount()` are exported from the same file. Cart is
-      in-memory only (no persist) — closing the tab clears it intentionally.
+      Selectors `useCartTotal()` and `useCartItemCount()` exported from same file. In-memory only
+      (no persist) — closing tab clears it intentionally.
       - `CartItem` carries `unitOfMeasure: UnitOfMeasure` (re-exported via `sales/types/index.ts` from
-        `../../products/types`). Never omit this field when constructing a cart item.
-      - `addItem(product, quantity = 1)` — pass `1` for PIECE products (default); pass the weighed decimal
-        for KILO products (e.g., `0.250`). `ProductForCart` (exported from `posStore.ts`) requires
-        `unit_of_measure: UnitOfMeasure`. When the product is already in the cart, the passed quantity is
-        **added** to the existing total — not a hardcoded `+1`.
-      - **Float precision (IEEE 754):** All quantity mutations go through `sanitizeQty = (v: number) => Number(v.toFixed(3))` (module-level in `posStore.ts`) to prevent drift accumulation from repeated additions. Applied in `addItem` on **both** branches — the merge branch wraps `existing + new`, and the new-item branch wraps the raw `quantity` argument before storing it (so a caller passing `0.1 + 0.2` cannot persist drift). Also applied in `updateItemQuantity` (wraps the raw argument). `useCartItemCount` applies `Number(...toFixed(3))` to the running sum before returning. Never bypass `sanitizeQty` when updating cart quantities.
+        `../../products/types`). Never omit when constructing a cart item.
+      - `addItem(product, quantity = 1)` — pass `1` for PIECE (default); pass weighed decimal for KILO
+        (e.g., `0.250`). `ProductForCart` (exported from `posStore.ts`) requires
+        `unit_of_measure: UnitOfMeasure`. When product already in cart, passed quantity is **added** to
+        existing total — not hardcoded `+1`.
+      - **Float precision (IEEE 754):** All quantity mutations go through
+        `sanitizeQty = (v: number) => Number(v.toFixed(3))` (module-level in `posStore.ts`) to prevent
+        drift accumulation. Applied in `addItem` on **both** branches — merge wraps `existing + new`,
+        new-item branch wraps the raw `quantity` argument (so a caller passing `0.1 + 0.2` cannot
+        persist drift). Also applied in `updateItemQuantity`. `useCartItemCount` applies
+        `Number(...toFixed(3))` to the running sum. Never bypass `sanitizeQty`.
     - **Sales API:** `src/features/sales/api/salesApi.ts` — `createSale(data)`,
-      `getSales({ page, size, sort? })`. `getSales` accepts an object; `sort` defaults to `"createdAt,desc"`.
-      Backend auto-assigns `cashier_id` from JWT — never send it.
-    - **Sale request DTO uses snake_case** (`payment_method`, `customer_id`, `amount_paid`, `items[].product_id`,
-      `items[].quantity`, `items[].unit_price`). All decimal fields are strings. Per payment method:
-      CARD/TRANSFER → `amount_paid = total`; CASH → `amount_paid = amountReceived`; CREDIT → `amount_paid = "0"`;
-      MIXED → `0 < amount_paid < total` and `customer_id` required (backend code `invalid_mixed_payment`).
-      Items payload always serializes `quantity` as `item.quantity.toFixed(3)` and `unit_price` as
-      `item.unitPrice.toFixed(2)` — never `.toString()`, which would preserve IEEE 754 drift as invalid wire strings.
+      `getSales({ page, size, sort? })`. `sort` defaults to `"createdAt,desc"`. Backend auto-assigns
+      `cashier_id` from JWT — never send it.
+    - **Sale request DTO uses snake_case** (`payment_method`, `customer_id`, `amount_paid`,
+      `items[].product_id`, `items[].quantity`, `items[].unit_price`). All decimal fields are strings.
+      Per payment method: CARD/TRANSFER → `amount_paid = total`; CASH → `amount_paid = amountReceived`;
+      CREDIT → `amount_paid = "0"`; MIXED → `0 < amount_paid < total` and `customer_id` required
+      (backend code `invalid_mixed_payment`). Items always serialize `quantity` as
+      `item.quantity.toFixed(3)` and `unit_price` as `item.unitPrice.toFixed(2)` — never `.toString()`,
+      which would preserve IEEE 754 drift as invalid wire strings.
     - **Quick Cash Buttons (`CheckoutModal`):** Two-row denomination grid rendered only inside
-      `{showCalculator && ...}` (CASH method; MIXED toggle lives inside the same block so buttons apply to both).
-      Constants at module level: `const QUICK_CASH = [50, 100, 200, 500, 1000] as const` (bills) and
+      `{showCalculator && ...}` (CASH method; MIXED toggle inside same block).
+      `const QUICK_CASH = [50, 100, 200, 500, 1000] as const` (bills),
       `const QUICK_COINS = [1, 2, 5, 10, 20] as const` (coins). Additive handler:
-      `handleQuickCash = (value: number) => setAmountPaid(prev => ((parseFloat(prev || "0") || 0) + value).toString())`
-      — the outer `|| 0` guards against `NaN` when the user typed invalid text before tapping a denomination.
-      "Exacto" **overwrites** (does not accumulate): `setAmountPaid(total.toFixed(2))`.
-      "Limpiar" resets: `setAmountPaid("")`. All buttons use `h-12 active:scale-95 transition-transform
-      focus-visible:ring-2`. Layout: `flex flex-col gap-2 mt-4` wrapper → two `grid grid-cols-6 gap-2` rows.
-      "Exacto" style: `bg-indigo-600 text-white hover:bg-indigo-700`. "Limpiar" style: `bg-rose-100 text-rose-700`.
-    - **POS data hooks:** `src/features/sales/hooks/usePosProducts.ts` (debounced 300 ms search, page-size 40,
-      active-only) and `usePosCustomers.ts` (single fetch of active customers, dropdown filtered locally).
-      Both wrap an async `load` in `useCallback` and call it via `useEffect(() => { void load(); }, [load])`
-      to satisfy `react-hooks/set-state-in-effect`. Reuse these instead of inlining `getProducts` /
-      `getCustomers` in POS components.
+      `setAmountPaid(prev => ((parseFloat(prev || "0") || 0) + value).toString())` — outer `|| 0` guards
+      `NaN`. "Exacto" overwrites: `setAmountPaid(total.toFixed(2))`. "Limpiar" resets: `setAmountPaid("")`.
+      Buttons: `h-12 active:scale-95 transition-transform focus-visible:ring-2`. Layout:
+      `flex flex-col gap-2 mt-4` → two `grid grid-cols-6 gap-2` rows. "Exacto":
+      `bg-indigo-600 text-white hover:bg-indigo-700`. "Limpiar": `bg-rose-100 text-rose-700`.
+    - **POS data hooks:** `src/features/sales/hooks/usePosProducts.ts` (debounced 300 ms search,
+      page-size 40, active-only) and `usePosCustomers.ts` (single fetch active customers, dropdown
+      filtered locally). Both wrap async `load` in `useCallback` and call via
+      `useEffect(() => { void load(); }, [load])` to satisfy `react-hooks/set-state-in-effect`. Reuse
+      instead of inlining `getProducts` / `getCustomers` in POS components.
     - **POS formatters:** `src/features/sales/utils/format.ts` exports `formatMoney`, `getInitials`,
-      `pastelColorFromId` (deterministic UUID → tailwind class for product cards), `formatSaleId` (8-char
-      uppercase prefix), `formatSaleDate` (epoch-safe — falls back to `new Date()` when input is null /
-      invalid / pre-1970). Never call `Intl.DateTimeFormat` directly on `created_at` strings without this
-      guard, or "1969" leaks into the UI.
-    - **QuantityModal (`src/features/sales/components/QuantityModal.tsx`):** Centered modal with a
-      giant `type="number" step="0.001"` input. Props: `{ open, onClose, onConfirm, initialValue?,
-      unitOfMeasure, productName }`. Label reads "Ingresar peso (kg)" for KILO, "Ingresar cantidad"
-      for PIECE. Uses `useModalAnimation`. Two call sites with distinct state owners:
-      (1) `PosScreen` — `kiloProduct: ProductResponse | null` state; KILO card clicks open this modal,
-      PIECE cards call `addItem` directly. (2) `CartSidebar` — `editingItem: CartItem | null` state;
-      clicking the quantity chip opens this modal to set an exact value on an existing cart line.
-    - **ProductGrid `onProductClick` prop:** `ProductGrid` requires `onProductClick: (product: ProductResponse) => void`
-      — it no longer calls `addItem` directly. `PosScreen` owns the dispatch logic (KILO → open
-      `QuantityModal`, PIECE → `addItem` immediately). `ProductCard` receives `onAdd` from `ProductGrid`.
-    - **Cart quantity formatting:** `formatQty(item: CartItem)` helper inside `CartSidebar` —
+      `pastelColorFromId` (deterministic UUID → tailwind class), `formatSaleId` (8-char uppercase prefix),
+      `formatSaleDate` (epoch-safe — falls back to `new Date()` when null/invalid/pre-1970). Never call
+      `Intl.DateTimeFormat` directly on `created_at` without this guard, or "1969" leaks into the UI.
+    - **QuantityModal (`src/features/sales/components/QuantityModal.tsx`):** Centered modal with giant
+      `type="number" step="0.001"` input. Props: `{ open, onClose, onConfirm, initialValue?,
+      unitOfMeasure, productName }`. Label: "Ingresar peso (kg)" for KILO, "Ingresar cantidad" for
+      PIECE. Uses `useModalAnimation`. Two call sites: (1) `PosScreen` —
+      `kiloProduct: ProductResponse | null` state, KILO card clicks open this modal, PIECE cards call
+      `addItem` directly. (2) `CartSidebar` — `editingItem: CartItem | null` state, clicking quantity
+      chip opens this modal.
+    - **ProductGrid `onProductClick` prop:** Required
+      `onProductClick: (product: ProductResponse) => void` — no longer calls `addItem` directly.
+      `PosScreen` owns dispatch (KILO → `QuantityModal`, PIECE → `addItem`). `ProductCard` receives
+      `onAdd` from `ProductGrid`.
+    - **Cart quantity formatting:** `formatQty(item: CartItem)` inside `CartSidebar` —
       KILO: `` `${qty.toFixed(3)} kg` ``; PIECE integer: `` `${qty} pz` ``; PIECE fraction:
-      `` `${qty.toFixed(1)} pz` ``. The quantity chip between `−` / `+` buttons is a clickable
-      `<button>` that opens `QuantityModal` pre-filled with the current value.
+      `` `${qty.toFixed(1)} pz` ``. Quantity chip between `−` / `+` is a clickable `<button>` opening
+      `QuantityModal` pre-filled.
 
-- **Sales history list (`/pos/sales-history`):** Read-only paginated list of confirmed sales. Component:
-  `src/features/sales/components/SalesList.tsx`. Reuses `SaleSummaryModal` and all formatters from
-  `sales/utils/format.ts`. Key patterns:
-    - **No search:** `GET /sales` only accepts `page`/`size`/`sort` — omit search UI until backend adds the
-      param. Omitting it is correct; never add a filter that silently does nothing server-side.
+- **Sales history list (`/pos/sales-history`):** Read-only paginated list. Component:
+  `src/features/sales/components/SalesList.tsx`. Reuses `SaleSummaryModal` and formatters from
+  `sales/utils/format.ts`.
+    - **No search:** `GET /sales` only accepts `page`/`size`/`sort` — omit search UI until backend adds.
+      Never add a filter that silently does nothing server-side.
     - **On-demand product name resolution:** `openSale(sale)` calls
-      `Promise.all(uniqueProductIds.map(id => getProductById(id).catch(() => null)))`, builds `CartItem[]`,
-      then passes it to `SaleSummaryModal`. Individual `getProductById` 404s fall back to name `"Producto"`
-      so they never block viewing the ticket.
-    - **Per-row loading state:** `loadingDetailId: string | null` tracks the in-flight row. Other rows stay
+      `Promise.all(uniqueProductIds.map(id => getProductById(id).catch(() => null)))`, builds
+      `CartItem[]`, passes to `SaleSummaryModal`. Individual 404s fall back to name `"Producto"` so they
+      never block viewing the ticket.
+    - **Per-row loading state:** `loadingDetailId: string | null` tracks in-flight row. Other rows stay
       interactive. Pattern: `disabled={loadingDetailId === s.id}`.
     - **Table layout stability:** `<table className="w-full table-fixed">` + fixed `<th>` widths
-      (`w-32`/`w-40`) prevent column reflow on re-render. `table-auto` recalculates on every setState.
-    - **Fixed-width action buttons:** Buttons that toggle loading state MUST carry `w-32 justify-center` so
-      the button is dimension-stable when text toggles ("Ver ticket" ↔ "Cargando..."). Swap the icon
-      conditionally: `loadingDetailId === s.id ? <Loader2 className="animate-spin" /> : <ReceiptText />`.
-      Text-width delta on a free-width button causes a column shift even inside `table-fixed` cells.
+      (`w-32`/`w-40`) prevent column reflow. `table-auto` recalculates on every setState.
+    - **Fixed-width action buttons:** Buttons toggling loading state MUST carry `w-32 justify-center` so
+      they're dimension-stable when text toggles ("Ver ticket" ↔ "Cargando..."). Swap icon conditionally:
+      `loadingDetailId === s.id ? <Loader2 className="animate-spin" /> : <ReceiptText />`. Text-width
+      delta on a free-width button causes column shift even inside `table-fixed` cells.
     - **Modal without tenderedAmount:** Pass no `tenderedAmount` (not persisted post-sale); the cash/change
       section in `SaleSummaryModal` is auto-hidden by its own `showCash`/`showChange` guards.
 
 - **Global scrollbar-gutter:** `src/index.css` sets `html { scrollbar-gutter: stable; }` to permanently
-  reserve the scrollbar track width. Prevents CLS when modals apply `body { overflow: hidden }`. **Never**
-  compensate with `document.body.style.paddingRight` or `marginRight` — the gutter handles it. Reference:
-  `src/shared/hooks/useModalAnimation.ts` sets only `overflow: hidden`, no padding hack needed.
+  reserve scrollbar track width. Prevents CLS when modals apply `body { overflow: hidden }`. **Never**
+  compensate with `document.body.style.paddingRight`/`marginRight` — gutter handles it. Reference:
+  `src/shared/hooks/useModalAnimation.ts` sets only `overflow: hidden`.
 
-- **POS full-bleed layout escape:** `StoreLayout` `<main>` is `flex-1 bg-slate-50 p-6 md:p-8`. The POS
-  catalog + cart needs the full viewport, so `PosScreen.tsx` root cancels that padding and pins the
-  height: `<div className="-m-6 md:-m-8 h-[calc(100vh-4rem)] flex flex-col md:flex-row bg-slate-50">`.
-  The `4rem` matches the `<header className="h-16">` of `StoreLayout`. Other future "immersive" pages
-  (kitchen display, scanner) should follow the same escape pattern.
+- **POS full-bleed layout escape:** `StoreLayout` `<main>` is `flex-1 bg-slate-50 p-6 md:p-8`. POS catalog
+  + cart needs full viewport, so `PosScreen.tsx` root cancels padding and pins height:
+  `<div className="-m-6 md:-m-8 h-[calc(100vh-4rem)] flex flex-col md:flex-row bg-slate-50">`. The `4rem`
+  matches `<header className="h-16">` of `StoreLayout`. Future immersive pages (kitchen display, scanner)
+  follow the same escape.
 
 - **Modal entrance / exit animation pattern:** Modals that mount/unmount conditionally must animate both
-  ways. Use two state flags + double `requestAnimationFrame` for entry and `setTimeout(EXIT_DURATION)`
-  before unmount for exit:
+  ways. Two state flags + double `requestAnimationFrame` for entry, `setTimeout(EXIT_DURATION)` before
+  unmount for exit:
   ```tsx
   const [render, setRender] = useState(open);
   const [show, setShow] = useState(false);
@@ -418,95 +377,70 @@ The `auth` and `stores` modules set the architectural precedent. Subsequent feat
   }, [open]);
   if (!render) return null;
   ```
-  Backdrop classes: `transition-opacity duration-300 ease-out`, toggled `opacity-100`↔`opacity-0`.
-  Panel classes: `transform transition-all duration-300 ease-out`, toggled
-  `translate-y-0 opacity-100 sm:scale-100` ↔ `translate-y-4 opacity-0 sm:translate-y-0 sm:scale-95`
-  (mobile slides up from bottom, desktop fades + zooms). Reference: `src/shared/components/ui/Modal.tsx`,
-  `src/features/sales/components/CheckoutModal.tsx`, `src/features/sales/components/SaleSummaryModal.tsx`.
+  Backdrop: `transition-opacity duration-300 ease-out`, `opacity-100`↔`opacity-0`. Panel:
+  `transform transition-all duration-300 ease-out`, `translate-y-0 opacity-100 sm:scale-100` ↔
+  `translate-y-4 opacity-0 sm:translate-y-0 sm:scale-95` (mobile slides up, desktop fades + zooms).
+  Reference: `src/shared/components/ui/Modal.tsx`, `src/features/sales/components/CheckoutModal.tsx`,
+  `src/features/sales/components/SaleSummaryModal.tsx`.
 
-- **Caching last prop during exit animation:** When a modal owns nothing but reads from a prop that the
-  parent clears on close (e.g., `SaleSummaryModal`'s `sale` prop set to `null` to close), the panel will
-  briefly render with stale data during the 200 ms exit. Cache the latest non-null prop in state via an
-  `useEffect` whose body uses `requestAnimationFrame(() => setCached(value))` so the lint rule does not
-  flag a sync setState. Then derive `const current = prop ?? cached;` for the JSX.
+- **Caching last prop during exit animation:** When a modal reads from a prop the parent clears on close
+  (e.g., `SaleSummaryModal`'s `sale` prop set to `null`), the panel briefly shows stale data during the
+  200 ms exit. Cache the latest non-null prop in state via `useEffect` whose body uses
+  `requestAnimationFrame(() => setCached(value))` (lint-safe). Derive `const current = prop ?? cached;`.
 
 - **Mobile slide-in drawer pattern:** Drawers must always be mounted and toggle classes — never gate the
-  whole drawer with `{open && <div>}` because the entrance/exit transition is then cut. Pattern:
-  ```tsx
-  <div className={`fixed inset-0 z-40 md:hidden ${open ? "pointer-events-auto" : "pointer-events-none"}`}
-       aria-hidden={!open}>
-    <div className={`absolute inset-0 bg-slate-900/50 transition-opacity duration-300 ease-out
-                     ${open ? "opacity-100" : "opacity-0"}`} onClick="" />
-    <div className={`absolute inset-y-0 right-0 ... bg-white shadow-2xl
-                     transition-transform duration-300 ease-in-out
-                     ${open ? "translate-x-0" : "translate-x-full"}`}>...</div>
-  </div>
-  ```
-  Reference: `src/features/sales/components/PosScreen.tsx`.
+  whole drawer with `{open && <div>}` (cuts the entrance/exit transition). Backdrop:
+  `transition-opacity duration-300 ease-out` toggled `opacity-100`↔`opacity-0`. Panel:
+  `transition-transform duration-300 ease-in-out` toggled `translate-x-0`↔`translate-x-full`. Outer
+  container toggles `pointer-events-auto`/`pointer-events-none` and `aria-hidden={!open}`. Reference:
+  `src/features/sales/components/PosScreen.tsx`.
 
-- **Lint compliance — `react-hooks/set-state-in-effect`:** Never call `setState` synchronously inside a
-  `useEffect` body. Wrap state mutations in callbacks (`requestAnimationFrame`, `setTimeout`, promise
-  `.then`, event handlers). For data-loading effects, extract an async function via `useCallback` and
-  invoke it with `useEffect(() => { void load(); }, [load])` — the rule allows setState inside the async
-  function because it runs as a callback, not synchronously in the effect.
+- **Lint compliance — `react-hooks/set-state-in-effect`:** Never call `setState` synchronously in a
+  `useEffect` body. Wrap mutations in callbacks (`requestAnimationFrame`, `setTimeout`, `.then`, event
+  handlers). For data-loading effects, extract async function via `useCallback` and invoke with
+  `useEffect(() => { void load(); }, [load])` — rule allows setState inside the async function.
 
-- **Lint compliance — `react-hooks/refs`:** Do **not** read `ref.current` during render (e.g., to derive
-  JSX from a cached value). Use `useState` updated inside an `requestAnimationFrame` callback in a
-  `useEffect` instead — see the "Caching last prop during exit animation" pattern above. Refs are still
-  fine for imperative DOM access from event handlers / effects.
+- **Lint compliance — `react-hooks/refs`:** Do **not** read `ref.current` during render. Use `useState`
+  updated inside a `requestAnimationFrame` callback in a `useEffect` (see "Caching last prop"). Refs are
+  fine for imperative DOM access from event handlers/effects.
 
 - **Toast feedback after async actions:** Successful side-effecting actions (e.g., `createSale` ack)
-  should surface a non-blocking toast with `role="status"` + `aria-live="polite"`, auto-dismiss in
-  ~6 s (3 s is too short to read both message and CTA). Embed any secondary action as a real button
+  surface a non-blocking toast with `role="status"` + `aria-live="polite"`, auto-dismiss in ~6 s (3 s is
+  too short to read both message and CTA). Embed any secondary action as a real button
   (`px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 rounded-md font-medium transition-colors`), not a
-  text link, so the click target is finger-sized. Reference: `PosScreen.tsx`'s "Ver ticket" toast.
+  text link. Reference: `PosScreen.tsx`'s "Ver ticket" toast.
 
-- **Cash shifts module (`/pos/*` gate):** Shift lifecycle lives in `src/features/cash/`. `StoreLayout`
-  mounts `<OpenShiftModal>` and `<CloseShiftModal>` as siblings of `<main>` — they gate every `/pos/*`
-  route. Reusable parts:
+- **Cash shifts module (`/pos/*` gate):** Shift lifecycle in `src/features/cash/`. `StoreLayout` mounts
+  `<OpenShiftModal>` and `<CloseShiftModal>` as siblings of `<main>` — they gate every `/pos/*` route.
     - **Cash store (`src/features/cash/store/cashShiftStore.ts`):** `useCashShiftStore` exposes
       `{ currentShift, isLoading, error, hasFetched, fetchCurrentShift, open, close, clearCurrentShift,
-      clearError, reset }`. No `persist` — backend is the source of truth. `hasFetched` starts `false`
-      and goes `true` after the first `fetchCurrentShift` resolves (success or error). The
-      `OpenShiftModal` gate is `hasFetched && !currentShift` — the `hasFetched` guard prevents a flash
-      during the initial GET. `close()` returns `CashShiftResponse | null` and does **not** clear
-      `currentShift` — the caller owns the receipt display and calls `clearCurrentShift()` after
-      acknowledgement. `reset()` wipes all state including `hasFetched=false` (used on logout);
-      `clearCurrentShift()` nulls only `currentShift`/`error` and keeps `hasFetched=true` so
+      clearError, reset }`. No `persist` — backend is source of truth. `hasFetched` starts `false`, goes
+      `true` after first `fetchCurrentShift` resolves. `OpenShiftModal` gate is
+      `hasFetched && !currentShift` — `hasFetched` prevents a flash during initial GET. `close()` returns
+      `CashShiftResponse | null` and does **not** clear `currentShift` — caller owns receipt display and
+      calls `clearCurrentShift()` after ack. `reset()` wipes all state including `hasFetched=false` (used
+      on logout); `clearCurrentShift()` nulls only `currentShift`/`error` and keeps `hasFetched=true` so
       `OpenShiftModal` reappears immediately.
     - **Logout integration:** `authStore.logout` calls `useCashShiftStore.getState().reset()` before
-      clearing token — same `getState()` no-React-binding pattern as the `apiClient` interceptor. Covers
+      clearing token — same `getState()` no-React-binding pattern as `apiClient` interceptor. Covers
       user-switch and silent 401 logout.
     - **`OpenShiftModal` — non-dismissible blocking modal (`src/features/cash/components/OpenShiftModal.tsx`):**
-      Use `useModalAnimation(open, { closeOnEscape: false })` and omit `onClick` on backdrop. No X
-      button, no Cancel. Single submit. Pattern for any mandatory gate (e.g., onboarding steps).
+      `useModalAnimation(open, { closeOnEscape: false })`, omit `onClick` on backdrop. No X, no Cancel.
+      Single submit. Pattern for any mandatory gate.
     - **`CloseShiftModal` — two-step modal (`src/features/cash/components/CloseShiftModal.tsx`):** Step
-      `"form"` is dismissible (ESC, backdrop, Cancel); step `"receipt"` is not (`closeOnEscape: false`,
+      `"form"` dismissible (ESC, backdrop, Cancel); step `"receipt"` not (`closeOnEscape: false`,
       backdrop `onClick` conditionally omitted). Modal resets step/fields/error in
-      `useEffect([open, clearError])` so reopening always starts clean. `handleFinish` calls `onClose()`
-      first (starts 200 ms exit), then `setTimeout(220ms, clearCurrentShift)` to prevent overlap with
-      `OpenShiftModal`. `closedShift` is local component state — receipt data survives unmount.
-      Difference display: `±0.0049` tolerance for Sobrante / Faltante / Exacto; `text-emerald-600` /
-      `text-rose-600` / `text-slate-700`; paired icons `ArrowUpCircle` / `ArrowDownCircle` /
-      `CheckCircle2` (color + icon, never color alone — WCAG 1.4.1).
-    - **Sidebar shift footer:** In `StoreLayout` `<aside>`, after `<nav>` (which is `flex-1`), render
+      `useEffect([open, clearError])` so reopening starts clean. `handleFinish` calls `onClose()` first
+      (starts 200 ms exit), then `setTimeout(220ms, clearCurrentShift)` to prevent overlap with
+      `OpenShiftModal`. `closedShift` is local state — receipt survives unmount. Difference display:
+      `±0.0049` tolerance for Sobrante/Faltante/Exacto; `text-emerald-600`/`text-rose-600`/`text-slate-700`;
+      icons `ArrowUpCircle`/`ArrowDownCircle`/`CheckCircle2` (color + icon, never color alone — WCAG 1.4.1).
+    - **Sidebar shift footer:** In `StoreLayout` `<aside>`, after `<nav>` (`flex-1`), render
       `{currentShift && <div className="border-t border-slate-800 px-3 py-4">...</div>}` with a pill
       showing `opening_balance` and a `bg-rose-600` "Cerrar caja" button (`LockKeyhole` icon). Call
-      `closeMenu()` before opening `CloseShiftModal` to close the mobile sidebar first.
+      `closeMenu()` before opening `CloseShiftModal` to close the mobile sidebar.
     - **`StoreLayout` mount fetch:** `useCallback(() => { void fetchCurrentShift(); }, [fetchCurrentShift])`
       + `useEffect(() => { loadShift(); }, [loadShift])` — satisfies `react-hooks/set-state-in-effect`.
-    - **Cash API (`src/features/cash/api/cashApi.ts`):** `getCurrentShift()` catches 404 → `null`; all
-      other errors propagate. `getShiftHistory({ page, size, sort? })` is a stub for a future OWNER
-      history page — do not wire UI until backend supports the endpoint.
-
-## 6. Expected Output Format
-
-When generating code or proposing changes, you MUST provide your response in the following exact order:
-
-1. **Design Reasoning:** A brief technical justification of the UI/UX choices, state management strategy, and how it
-   aligns with the backend API contract.
-2. **Implementation:** The TypeScript/React code blocks organized by the required feature folder structure.
-3. **Verification:** The specific `pnpm` command to verify the implementation:
-    - Run dev: `pnpm dev`
-    - Type check: `pnpm build`
-    - Linter: `pnpm lint`
+    - **Cash API (`src/features/cash/api/cashApi.ts`):** `getCurrentShift()` catches 404 → `null`; other
+      errors propagate. `getShiftHistory({ page, size, sort? })` is a stub for a future OWNER history
+      page — do not wire UI until backend supports it.
