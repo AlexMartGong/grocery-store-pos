@@ -50,3 +50,14 @@ export interface CartItem {
   subtotal: number;
   unitOfMeasure: UnitOfMeasure;
 }
+
+export type CancellationReason =
+  | "CASHIER_ERROR"
+  | "CUSTOMER_REGRET"
+  | "WRONG_PRODUCT"
+  | "OTHER";
+
+export interface CancelSaleRequest {
+  reason: CancellationReason;
+  notes?: string;
+}

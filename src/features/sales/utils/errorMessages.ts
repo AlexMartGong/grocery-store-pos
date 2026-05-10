@@ -11,6 +11,8 @@ export const SALES_ERROR_MESSAGES: Record<string, string> = {
   conflict: "La operación fue rechazada por el servidor (posible inconsistencia de stock).",
   validation_failed: "Revisa los datos de la venta y vuelve a intentar.",
   forbidden: "No tienes permiso para registrar ventas.",
+  sale_not_found: "La venta ya no existe o pertenece a otra tienda.",
+  sale_already_canceled: "Esta venta ya fue cancelada previamente.",
 };
 
 const NETWORK_ERROR = "Error de red. Verifica tu conexión e intenta de nuevo.";

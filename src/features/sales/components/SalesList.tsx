@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, ListOrdered, Loader2, ReceiptText } from "lucide-react";
+import { AlertCircle, Ban, ListOrdered, Loader2, ReceiptText } from "lucide-react";
 import { getSales } from "../api/salesApi";
 import { getProductById } from "../../products/api/productsApi";
 import { mapSalesError } from "../utils/errorMessages";
 import { formatMoney, formatSaleDate, formatSaleId } from "../utils/format";
 import { SaleSummaryModal } from "./SaleSummaryModal";
-import type { CartItem, SalePaymentMethod, SaleResponse } from "../types";
+import { CancelSaleModal } from "./CancelSaleModal";
+import type { CartItem, SalePaymentMethod, SaleResponse, SaleStatus } from "../types";
 
 const PAGE_SIZE = 20;
 
@@ -28,6 +29,16 @@ const METHOD_BADGE: Record<SalePaymentMethod, string> = {
 const customerLabel = (id: string | null): string =>
   id ? `Cliente #${id.slice(0, 8).toUpperCase()}` : "Público General";
 
+const STATUS_LABEL: Record<SaleStatus, string> = {
+  COMPLETED: "Completada",
+  CANCELED: "Cancelada",
+};
+
+const STATUS_BADGE: Record<SaleStatus, string> = {
+  COMPLETED: "bg-emerald-100 text-emerald-700 ring-emerald-200",
+  CANCELED: "bg-slate-200 text-slate-600 ring-slate-300",
+};
+
 export const SalesList = () => {
   const [sales, setSales] = useState<SaleResponse[]>([]);
   const [page, setPage] = useState(0);
@@ -38,6 +49,7 @@ export const SalesList = () => {
   const [selectedSale, setSelectedSale] = useState<SaleResponse | null>(null);
   const [modalCartItems, setModalCartItems] = useState<CartItem[]>([]);
   const [loadingDetailId, setLoadingDetailId] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<SaleResponse | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -152,11 +164,18 @@ export const SalesList = () => {
                       {formatSaleDate(s.created_at)}
                     </p>
                   </div>
-                  <span
-                    className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${METHOD_BADGE[s.payment_method]}`}
-                  >
-                    {METHOD_LABEL[s.payment_method]}
-                  </span>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${METHOD_BADGE[s.payment_method]}`}
+                    >
+                      {METHOD_LABEL[s.payment_method]}
+                    </span>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_BADGE[s.status]}`}
+                    >
+                      {STATUS_LABEL[s.status]}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="truncate text-slate-600">
@@ -166,19 +185,32 @@ export const SalesList = () => {
                     {formatMoney(s.total_amount)}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void openSale(s)}
-                  disabled={loadingDetailId === s.id}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/40 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loadingDetailId === s.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ReceiptText className="h-4 w-4" />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void openSale(s)}
+                    disabled={loadingDetailId === s.id}
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {loadingDetailId === s.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ReceiptText className="h-4 w-4" />
+                    )}
+                    {loadingDetailId === s.id ? "Cargando..." : "Ver ticket"}
+                  </button>
+                  {s.status === "COMPLETED" && (
+                    <button
+                      type="button"
+                      onClick={() => setCancelTarget(s)}
+                      aria-label={`Cancelar venta ${formatSaleId(s.id)}`}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2.5 text-sm text-rose-700 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/40"
+                    >
+                      <Ban className="h-4 w-4" />
+                      Cancelar
+                    </button>
                   )}
-                  {loadingDetailId === s.id ? "Cargando..." : "Ver ticket"}
-                </button>
+                </div>
               </li>
             ))}
         </ul>
@@ -193,20 +225,21 @@ export const SalesList = () => {
                 <th className="px-4 py-3 font-medium">Cliente</th>
                 <th className="px-4 py-3 font-medium">Método</th>
                 <th className="px-4 py-3 text-right font-medium">Total</th>
+                <th className="px-4 py-3 font-medium">Estado</th>
                 <th className="px-4 py-3 text-right font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
                     Cargando...
                   </td>
                 </tr>
               )}
               {!loading && sales.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
                     Sin ventas registradas.
                   </td>
                 </tr>
@@ -232,7 +265,14 @@ export const SalesList = () => {
                       {formatMoney(s.total_amount)}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_BADGE[s.status]}`}
+                      >
+                        {STATUS_LABEL[s.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => void openSale(s)}
@@ -246,6 +286,17 @@ export const SalesList = () => {
                           )}
                           {loadingDetailId === s.id ? "Cargando..." : "Ver ticket"}
                         </button>
+                        {s.status === "COMPLETED" && (
+                          <button
+                            type="button"
+                            onClick={() => setCancelTarget(s)}
+                            aria-label={`Cancelar venta ${formatSaleId(s.id)}`}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-rose-200 bg-white px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/40"
+                          >
+                            <Ban className="h-3.5 w-3.5" />
+                            Cancelar
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -285,6 +336,16 @@ export const SalesList = () => {
         sale={selectedSale}
         cartItems={modalCartItems}
         onClose={closeModal}
+      />
+
+      <CancelSaleModal
+        isOpen={cancelTarget !== null}
+        sale={cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        onSuccess={() => {
+          setCancelTarget(null);
+          void load();
+        }}
       />
     </div>
   );
