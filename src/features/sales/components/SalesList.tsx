@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, Ban, ListOrdered, Loader2, ReceiptText } from "lucide-react";
+import {
+  AlertCircle,
+  Ban,
+  CheckCircle2,
+  ListOrdered,
+  Loader2,
+  ReceiptText,
+  XCircle,
+} from "lucide-react";
 import { getSales } from "../api/salesApi";
 import { getProductById } from "../../products/api/productsApi";
 import { mapSalesError } from "../utils/errorMessages";
@@ -50,6 +58,15 @@ export const SalesList = () => {
   const [modalCartItems, setModalCartItems] = useState<CartItem[]>([]);
   const [loadingDetailId, setLoadingDetailId] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SaleResponse | null>(null);
+  const [printToast, setPrintToast] = useState<
+    { kind: "success" | "error"; message: string } | null
+  >(null);
+
+  useEffect(() => {
+    if (!printToast) return;
+    const t = setTimeout(() => setPrintToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [printToast]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -336,7 +353,27 @@ export const SalesList = () => {
         sale={selectedSale}
         cartItems={modalCartItems}
         onClose={closeModal}
+        onPrintFeedback={(ok, message) =>
+          setPrintToast({ kind: ok ? "success" : "error", message })
+        }
       />
+
+      {printToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed left-4 right-4 top-4 z-50 mx-auto flex max-w-sm items-start gap-3 rounded-xl px-4 py-3 text-white shadow-lg sm:left-auto sm:right-4 ${
+            printToast.kind === "success" ? "bg-emerald-600" : "bg-rose-600"
+          }`}
+        >
+          {printToast.kind === "success" ? (
+            <CheckCircle2 aria-hidden className="mt-0.5 h-5 w-5 shrink-0" />
+          ) : (
+            <XCircle aria-hidden className="mt-0.5 h-5 w-5 shrink-0" />
+          )}
+          <p className="text-sm font-medium">{printToast.message}</p>
+        </div>
+      )}
 
       <CancelSaleModal
         isOpen={cancelTarget !== null}

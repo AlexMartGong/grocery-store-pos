@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, ShoppingBag } from "lucide-react";
+import { AlertCircle, CheckCircle2, ShoppingBag, XCircle } from "lucide-react";
 import { ProductGrid } from "./ProductGrid";
 import { CartSidebar } from "./CartSidebar";
 import { CheckoutModal } from "./CheckoutModal";
@@ -13,11 +13,13 @@ import { searchByBarcode } from "../../products/api/productsApi";
 import { useBarcodeScanner } from "../../../shared/hooks/useBarcodeScanner";
 import { CameraScannerModal } from "../../../shared/components/scanner/CameraScannerModal";
 import { playBeep, playErrorBeep, vibrate } from "../../../shared/utils/feedback";
+import { useAuthStore } from "../../auth/store/authStore";
 
 export const PosScreen = () => {
   const itemCount = useCartItemCount();
   const total = useCartTotal();
   const addItem = usePosStore((s) => s.addItem);
+  const username = useAuthStore((s) => s.user?.username ?? null);
 
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -29,6 +31,9 @@ export const PosScreen = () => {
   const [kiloProduct, setKiloProduct] = useState<ProductResponse | null>(null);
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [printToast, setPrintToast] = useState<
+    { kind: "success" | "error"; message: string } | null
+  >(null);
 
   useEffect(() => {
     if (!cartDrawerOpen) return;
@@ -50,6 +55,12 @@ export const PosScreen = () => {
     const t = setTimeout(() => setScanError(null), 4000);
     return () => clearTimeout(t);
   }, [scanError]);
+
+  useEffect(() => {
+    if (!printToast) return;
+    const t = setTimeout(() => setPrintToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [printToast]);
 
   const handleScan = useCallback(
     async (code: string) => {
@@ -193,6 +204,10 @@ export const PosScreen = () => {
         tenderedAmount={lastTenderedAmount}
         cartItems={lastCart}
         onClose={() => setSummaryOpen(false)}
+        employeeName={username}
+        onPrintFeedback={(ok, message) =>
+          setPrintToast({ kind: ok ? "success" : "error", message })
+        }
       />
 
       <QuantityModal
@@ -232,6 +247,23 @@ export const PosScreen = () => {
         >
           <AlertCircle aria-hidden className="mt-0.5 h-5 w-5 shrink-0" />
           <p className="text-sm font-medium">{scanError}</p>
+        </div>
+      )}
+
+      {printToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed left-4 right-4 top-4 z-50 mx-auto flex max-w-sm items-start gap-3 rounded-xl px-4 py-3 text-white shadow-lg sm:left-auto sm:right-4 ${
+            printToast.kind === "success" ? "bg-emerald-600" : "bg-rose-600"
+          }`}
+        >
+          {printToast.kind === "success" ? (
+            <CheckCircle2 aria-hidden className="mt-0.5 h-5 w-5 shrink-0" />
+          ) : (
+            <XCircle aria-hidden className="mt-0.5 h-5 w-5 shrink-0" />
+          )}
+          <p className="text-sm font-medium">{printToast.message}</p>
         </div>
       )}
 

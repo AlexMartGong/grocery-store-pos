@@ -1,14 +1,21 @@
 import { useEffect, useState } from "react";
-import { Printer, X } from "lucide-react";
+import { Loader2, Printer, X } from "lucide-react";
 import type { CartItem, SalePaymentMethod, SaleResponse } from "../types";
 import { formatMoney, formatSaleDate, formatSaleId } from "../utils/format";
 import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
+import { printTicket } from "../../../shared/api/agentApi";
+import { mapSaleToTicketDTO } from "../utils/ticketAdapter";
+import { playBeep, playErrorBeep, vibrate } from "../../../shared/utils/feedback";
 
 interface SaleSummaryModalProps {
   sale: SaleResponse | null;
   tenderedAmount?: number;
   cartItems?: CartItem[];
   onClose: () => void;
+  onPrintFeedback?: (ok: boolean, message: string) => void;
+  employeeName?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
 }
 
 const METHOD_LABEL: Record<SalePaymentMethod, string> = {
@@ -19,9 +26,19 @@ const METHOD_LABEL: Record<SalePaymentMethod, string> = {
   MIXED: "Mixto",
 };
 
-export const SaleSummaryModal = ({ sale, tenderedAmount, cartItems, onClose }: SaleSummaryModalProps) => {
+export const SaleSummaryModal = ({
+  sale,
+  tenderedAmount,
+  cartItems,
+  onClose,
+  onPrintFeedback,
+  employeeName,
+  customerName,
+  customerPhone,
+}: SaleSummaryModalProps) => {
   const open = sale != null;
   const [cached, setCached] = useState<SaleResponse | null>(sale);
+  const [isPrinting, setIsPrinting] = useState(false);
   const { render, show } = useModalAnimation(open, { onClose });
 
   useEffect(() => {
@@ -32,6 +49,39 @@ export const SaleSummaryModal = ({ sale, tenderedAmount, cartItems, onClose }: S
 
   const current = sale ?? cached;
   if (!render || !current) return null;
+
+  const handlePrint = async () => {
+    if (isPrinting) return;
+    setIsPrinting(true);
+    try {
+      const dto = mapSaleToTicketDTO(current, cartItems ?? [], {
+        cashReceived: tenderedAmount,
+        employeeName,
+        customerName,
+        customerPhone,
+      });
+      const res = await printTicket(dto);
+      if (res.success) {
+        playBeep();
+        vibrate(50);
+        onPrintFeedback?.(true, `Ticket #${res.ticketId} impreso`);
+      } else {
+        playErrorBeep();
+        vibrate([60, 50, 60]);
+        onPrintFeedback?.(
+          false,
+          `Error de impresión: ${res.error ?? "desconocido"}`,
+        );
+      }
+    } catch {
+      playErrorBeep();
+      vibrate([60, 50, 60]);
+      onPrintFeedback?.(false, "No se pudo conectar al agente local");
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
   const showCredit =
     current.payment_method === "CREDIT" || current.payment_method === "MIXED";
   const showCash =
@@ -157,11 +207,16 @@ export const SaleSummaryModal = ({ sale, tenderedAmount, cartItems, onClose }: S
           </button>
           <button
             type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+            onClick={() => void handlePrint()}
+            disabled={isPrinting}
+            className="flex w-40 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            <Printer aria-hidden className="h-4 w-4" />
-            Imprimir ticket
+            {isPrinting ? (
+              <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+            ) : (
+              <Printer aria-hidden className="h-4 w-4" />
+            )}
+            {isPrinting ? "Imprimiendo..." : "Imprimir ticket"}
           </button>
         </div>
       </div>

@@ -5,6 +5,7 @@ import {
     LogOut,
     Menu,
     Package,
+    Printer,
     ShoppingCart,
     UserRound,
     Users,
@@ -17,6 +18,7 @@ import { OpenShiftModal } from "../../../features/cash/components/OpenShiftModal
 import { NotificationBell } from "../../../features/notifications/components/NotificationBell";
 import { useNotificationStore } from "../../../features/notifications/store/notificationStore";
 import { formatMoney } from "../../../features/sales/utils/format";
+import { AgentSettingsModal } from "../../../features/settings/components/AgentSettingsModal";
 import { navLinkClass, useMobileMenu } from "../../hooks/useMobileMenu";
 
 export const StoreLayout = () => {
@@ -32,6 +34,7 @@ export const StoreLayout = () => {
     const fetchUnread = useNotificationStore((s) => s.fetchUnread);
 
     const [closeModalOpen, setCloseModalOpen] = useState(false);
+    const [agentSettingsOpen, setAgentSettingsOpen] = useState(false);
 
     const isOwner = user?.role === "OWNER";
 
@@ -96,6 +99,19 @@ export const StoreLayout = () => {
                         </NavLink>
                     )}
                 </nav>
+                <div className="border-t border-slate-800 px-3 py-3">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            closeMenu();
+                            setAgentSettingsOpen(true);
+                        }}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                    >
+                        <Printer size={16} />
+                        Agente de impresión
+                    </button>
+                </div>
                 {currentShift && (
                     <div className="border-t border-slate-800 px-3 py-4">
                         <div className="mb-2 px-2 text-[11px] uppercase tracking-wide text-slate-500">
@@ -156,6 +172,10 @@ export const StoreLayout = () => {
             <CloseShiftModal
                 open={closeModalOpen}
                 onClose={() => setCloseModalOpen(false)}
+            />
+            <AgentSettingsModal
+                open={agentSettingsOpen}
+                onClose={() => setAgentSettingsOpen(false)}
             />
         </div>
     );
