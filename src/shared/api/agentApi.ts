@@ -16,6 +16,9 @@ export interface AgentSaleDetailDTO {
 }
 
 export interface AgentTicketDTO {
+  businessName: string | null;
+  businessAddress: string | null;
+  businessPhone: string | null;
   id: number | null;
   employeeId: number | null;
   employeeName: string | null;

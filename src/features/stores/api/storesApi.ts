@@ -2,6 +2,7 @@ import { apiClient } from "../../../shared/api/api";
 import type { PageResponse } from "../../../shared/types";
 import type {
   CreateStoreRequest,
+  StoreProfileResponse,
   StoreResponse,
   StoreStatus,
   UpdateStoreRequest,
@@ -45,3 +46,8 @@ export async function updateStore(
 export async function deleteStore(id: string): Promise<void> {
   await apiClient.delete(`/stores/${id}`);
 }
+
+export const getMyStoreProfile = async (): Promise<StoreProfileResponse> => {
+  const res = await apiClient.get<StoreProfileResponse>("/stores/me");
+  return res.data;
+};

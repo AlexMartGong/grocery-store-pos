@@ -26,3 +26,10 @@ export interface UpdateStoreRequest {
   address?: string;
   status: StoreStatus;
 }
+
+export interface StoreProfileResponse {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+}

@@ -19,6 +19,7 @@ import { NotificationBell } from "../../../features/notifications/components/Not
 import { useNotificationStore } from "../../../features/notifications/store/notificationStore";
 import { formatMoney } from "../../../features/sales/utils/format";
 import { AgentSettingsModal } from "../../../features/settings/components/AgentSettingsModal";
+import { useStoreProfileStore } from "../../../features/stores/store/storeProfileStore";
 import { navLinkClass, useMobileMenu } from "../../hooks/useMobileMenu";
 
 export const StoreLayout = () => {
@@ -32,6 +33,7 @@ export const StoreLayout = () => {
     const hasFetched = useCashShiftStore((s) => s.hasFetched);
 
     const fetchUnread = useNotificationStore((s) => s.fetchUnread);
+    const fetchProfile = useStoreProfileStore((s) => s.fetchProfile);
 
     const [closeModalOpen, setCloseModalOpen] = useState(false);
     const [agentSettingsOpen, setAgentSettingsOpen] = useState(false);
@@ -51,6 +53,13 @@ export const StoreLayout = () => {
     useEffect(() => {
         loadNotifications();
     }, [loadNotifications]);
+
+    const loadProfile = useCallback(() => {
+        void fetchProfile();
+    }, [fetchProfile]);
+    useEffect(() => {
+        loadProfile();
+    }, [loadProfile]);
 
     const handleLogout = () => {
         logout();

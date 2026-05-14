@@ -2,6 +2,7 @@ import type {
   AgentSaleDetailDTO,
   AgentTicketDTO,
 } from "../../../shared/api/agentApi";
+import { useStoreProfileStore } from "../../stores/store/storeProfileStore";
 import type { CartItem, SaleResponse } from "../types";
 
 const HEX_RE = /^[0-9a-f]+$/i;
@@ -42,6 +43,7 @@ export const mapSaleToTicketDTO = (
   cartItems: CartItem[],
   options: MapOptions = {},
 ): AgentTicketDTO => {
+  const profile = useStoreProfileStore.getState().profile;
   const datetime = toLocalDateTime(sale.created_at);
   const total = toMoney(sale.total_amount);
   const amountPaid = toMoney(sale.amount_paid);
@@ -90,6 +92,9 @@ export const mapSaleToTicketDTO = (
   });
 
   return {
+    businessName: profile?.name ?? null,
+    businessAddress: profile?.address ?? null,
+    businessPhone: profile?.phone ?? null,
     id: saleIdLong,
     employeeId: uuidToLong(sale.cashier_id),
     employeeName: options.employeeName ?? null,
