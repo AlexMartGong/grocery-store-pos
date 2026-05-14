@@ -43,7 +43,7 @@ Senior Frontend Engineer building a multi-tenant POS SPA.
 Feature-Driven (Domain) Architecture aligned with backend modules.
 
 - `src/features/<feature-name>` — components, hooks, stores, API per domain (`admin`, `stores`, `users`,
-  `products`, `sales`, `customers`, `cash`).
+  `products`, `sales`, `customers`, `cash`, `notifications`, `inventory`, `settings`).
 - `src/shared/` — global UI components, utilities, generic hooks.
 - `src/routes/` — route definitions mapping to feature pages.
 
@@ -133,6 +133,10 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
       `validation_failed`, `forbidden`)
     - `mapCashShiftError` — `src/features/cash/utils/errorMessages.ts` (codes: `shift_already_open`,
       `open_shift_not_found`, `validation_failed`, `forbidden`)
+    - `mapNotificationsError` — `src/features/notifications/utils/errorMessages.ts` (codes:
+      `notification_not_found`, `forbidden`)
+    - `mapInventoryError` — `src/features/inventory/utils/errorMessages.ts` (codes: `product_not_found`,
+      `reason_not_allowed`, `validation_failed`, `forbidden`, `conflict`)
 
   Never add unrelated error codes to another feature's map.
 - **Field-level error state:** When endpoint returns `400` `{ error: "validation_failed", fields:
@@ -345,6 +349,17 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
       delta on a free-width button causes column shift even inside `table-fixed` cells.
     - **Modal without tenderedAmount:** Pass no `tenderedAmount` (not persisted post-sale); the cash/change
       section in `SaleSummaryModal` is auto-hidden by its own `showCash`/`showChange` guards.
+    - **Sale cancellation (`CancelSaleModal`):** `src/features/sales/components/CancelSaleModal.tsx` —
+      opens from `SalesList` (OWNER only). Calls `cancelSale(id, reason, notes?)` which posts to
+      `DELETE /sales/:id` with body. `CancellationReason = "CASHIER_ERROR" | "CUSTOMER_REGRET" |
+      "WRONG_PRODUCT" | "OTHER"`. Blocking while submitting; state resets on reopen via
+      `requestAnimationFrame`. Uses `mapSalesError`.
+    - **Ticket adapter:** `src/features/sales/utils/ticketAdapter.ts` exports
+      `mapSaleToTicketDTO(sale, cartItems, options)` — bridges `SaleResponse` + `CartItem[]` →
+      `AgentTicketDTO` for the printer agent. Handles all 5 payment methods for
+      `amountTendered`/`changeDue`. `uuidToLong()` truncates the first 8 UUID hex chars to a `number`
+      (agent protocol requirement). Always route `SaleResponse → AgentTicketDTO` through this function —
+      never map inline.
 
 - **Global scrollbar-gutter:** `src/index.css` sets `html { scrollbar-gutter: stable; }` to permanently
   reserve scrollbar track width. Prevents CLS when modals apply `body { overflow: hidden }`. **Never**
@@ -494,3 +509,49 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
     - **`data-allow-scanner` opt-in:** Only attach this attribute to inputs that should accept scanner
       bytes (e.g., a catalog search). The hook itself enforces the suppression — do not also add custom
       `onKeyDown` handlers to strip digits; that double-blocks legitimate human typing.
+
+- **Notifications module (`src/features/notifications/`):** Server-push alerts for OWNER only
+  (LOW_STOCK, OUT_OF_STOCK, OVERDUE_CREDIT). `StoreLayout` fetches unread on mount for `OWNER` role.
+    - **API:** `GET /notifications/unread` → `NotificationResponse[]` (not paginated); `PATCH
+      /notifications/:id/read`. Types in `src/features/notifications/types/index.ts`.
+    - **`useNotificationStore`:** `{ notifications, unreadCount, isLoading, error, hasFetched,
+      fetchUnread, markAsRead, clearError, reset }`. No `persist`. `markAsRead` is **optimistic** —
+      removes from list immediately, rolls back on API failure. `reset()` called on logout (same
+      `getState()` pattern as cash shift store).
+    - **`NotificationBell`:** Dropdown anchored to `StoreLayout` header. On desktop renders as an
+      absolute panel; on mobile slides up from bottom as a sheet (`fixed inset-x-0 bottom-0
+      rounded-t-2xl`). Outside-click closes via `mousedown` listener on `document` (not `click` — avoids
+      event-order issues). `unreadCount > 99` displays "99+".
+    - **`formatRelativeTime` (`src/features/notifications/utils/relativeTime.ts`):** Epoch-safe relative
+      formatter using `Intl.RelativeTimeFormat("es-MX")`. Falls back to `Intl.DateTimeFormat` for dates
+      older than 7 days. Reuse for any relative timestamp — do not call `Intl.RelativeTimeFormat`
+      directly in components.
+
+- **Inventory adjustments (`src/features/inventory/`):** Manual stock corrections posted by OWNER.
+    - **API:** `adjustStock(data)` → `POST /inventory/movements`. Request DTO:
+      `{ product_id: string, quantity: string, reason: InventoryReason, notes?: string }` — all
+      snake_case. `InventoryReason = "RESTOCK" | "LOSS" | "ADJUSTMENT"`.
+    - **`AdjustStockModal`** lives in `src/features/products/components/AdjustStockModal.tsx` (product
+      feature, not inventory) because it's triggered from `ProductsList`. Uses `mapInventoryError`.
+
+- **Customer credit payments (`RegisterPaymentModal`):**
+  `src/features/customers/components/RegisterPaymentModal.tsx` — opens from `CustomersList` for rows
+  with `outstanding_balance > 0`. Calls `registerPayment(customerId, amount)` →
+  `POST /customers/:id/payments` with body `{ amount: string }` (2-decimal string). Client-side guards:
+  `parsed <= 0` and `parsed > outstanding_balance`. Uses `mapCustomersError`. Modal returns `null`
+  (renders nothing) when `customer` prop is null or balance is ≤ 0.
+
+- **Agent printer settings (`src/features/settings/`):**
+    - **`useSettingsStore` (`src/features/settings/store/settingsStore.ts`):** Persisted Zustand store
+      (`"grocery-pos-settings"` key, `partialize` → `localAgentUrl` only). Exports `setLocalAgentUrl`
+      (normalizes trailing slashes) and `autoDiscoverAgent()` (calls `scanLocalNetworkForAgent()`, sets
+      URL in store, returns `boolean`). Default URL: `http://192.168.68.66:8081`.
+    - **`AgentSettingsModal`** opens from `StoreLayout` sidebar (`Printer` icon). Owns local `url`
+      state, `TestState` (`idle | testing | ok | fail | discovered`), and `isScanning` boolean.
+      "Probar conexión" calls `pingAgent(url)`. "Auto-detectar red" calls `autoDiscoverAgent()`,
+      syncs local input from store on success, shows "Caja encontrada y actualizada". All controls
+      disable while `isScanning`.
+    - **`agentApi.ts` (`src/shared/api/agentApi.ts`):** `printTicket(dto)` (POST, 8 s timeout),
+      `pingAgent(url?)` (OPTIONS, 3 s timeout), `scanLocalNetworkForAgent()` (scans
+      `192.168.{1,0,68}.*:8081` via `Promise.any`). Always use these — never create ad-hoc axios calls
+      to the agent.
