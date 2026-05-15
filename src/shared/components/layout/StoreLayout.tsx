@@ -34,6 +34,7 @@ export const StoreLayout = () => {
 
     const fetchUnread = useNotificationStore((s) => s.fetchUnread);
     const fetchProfile = useStoreProfileStore((s) => s.fetchProfile);
+    const profile = useStoreProfileStore((s) => s.profile);
 
     const [closeModalOpen, setCloseModalOpen] = useState(false);
     const [agentSettingsOpen, setAgentSettingsOpen] = useState(false);
@@ -82,7 +83,7 @@ export const StoreLayout = () => {
                 }`}
             >
                 <div className="flex h-16 items-center px-6">
-                    <span className="text-lg font-bold text-white">Pasadita</span>
+                    <span className="text-lg font-bold text-white">{profile?.name || "Cargando..."}</span>
                 </div>
                 <nav aria-label="Main Navigation" className="flex-1 space-y-1 px-3 py-4">
                     <NavLink to="/pos/sales" className={navLinkClass} onClick={closeMenu}>
