@@ -6,7 +6,7 @@ import { CheckoutModal } from "./CheckoutModal";
 import { SaleSummaryModal } from "./SaleSummaryModal";
 import { QuantityModal } from "./QuantityModal";
 import { useCartItemCount, useCartTotal, usePosStore } from "../store/posStore";
-import { formatMoney, formatSaleId } from "../utils/format";
+import { formatMoney } from "../utils/format";
 import type { CartItem, SaleResponse } from "../types";
 import type { ProductResponse } from "../../products/types";
 import { searchByBarcode } from "../../products/api/productsApi";
@@ -26,7 +26,6 @@ export const PosScreen = () => {
   const [lastSale, setLastSale] = useState<SaleResponse | null>(null);
   const [lastTenderedAmount, setLastTenderedAmount] = useState<number>(0);
   const [lastCart, setLastCart] = useState<CartItem[]>([]);
-  const [toastVisible, setToastVisible] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [kiloProduct, setKiloProduct] = useState<ProductResponse | null>(null);
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
@@ -43,12 +42,6 @@ export const PosScreen = () => {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [cartDrawerOpen]);
-
-  useEffect(() => {
-    if (!toastVisible) return;
-    const t = setTimeout(() => setToastVisible(false), 6000);
-    return () => clearTimeout(t);
-  }, [toastVisible]);
 
   useEffect(() => {
     if (!scanError) return;
@@ -117,7 +110,7 @@ export const PosScreen = () => {
     setLastTenderedAmount(tenderedAmount);
     setLastCart(cartItems);
     setCheckoutOpen(false);
-    setToastVisible(true);
+    setSummaryOpen(true);
   };
 
   const handleProductClick = (product: ProductResponse) => {
@@ -267,30 +260,6 @@ export const PosScreen = () => {
         </div>
       )}
 
-      {toastVisible && lastSale && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed right-4 top-4 z-50 flex max-w-sm items-center gap-3 rounded-xl bg-emerald-600 px-4 py-3 text-white shadow-lg"
-        >
-          <CheckCircle2 aria-hidden className="h-5 w-5 shrink-0" />
-          <div className="flex items-center gap-3 text-sm">
-            <p className="font-semibold">
-              Venta #{formatSaleId(lastSale.id)} registrada
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setSummaryOpen(true);
-                setToastVisible(false);
-              }}
-              className="rounded-md bg-emerald-700 px-3 py-1.5 font-medium transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-            >
-              Ver ticket
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
