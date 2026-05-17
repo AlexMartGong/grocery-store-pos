@@ -543,14 +543,16 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 - **Agent printer settings (`src/features/settings/`):**
     - **`useSettingsStore` (`src/features/settings/store/settingsStore.ts`):** Persisted Zustand store
       (`"grocery-pos-settings"` key, `partialize` → `localAgentUrl` only). Exports `setLocalAgentUrl`
-      (normalizes trailing slashes) and `autoDiscoverAgent()` (calls `scanLocalNetworkForAgent()`, sets
-      URL in store, returns `boolean`). Default URL: `http://192.168.68.66:8081`.
+      (normalizes trailing slashes) and `autoDiscoverAgent()` (calls `fetchAgentUrlFromCloud()`, sets
+      URL in store via `setLocalAgentUrl`, returns `boolean`). Default URL: `http://192.168.68.66:8081`.
     - **`AgentSettingsModal`** opens from `StoreLayout` sidebar (`Printer` icon). Owns local `url`
       state, `TestState` (`idle | testing | ok | fail | discovered`), and `isScanning` boolean.
-      "Probar conexión" calls `pingAgent(url)`. "Auto-detectar red" calls `autoDiscoverAgent()`,
-      syncs local input from store on success, shows "Caja encontrada y actualizada". All controls
-      disable while `isScanning`.
+      "Probar conexión" calls `pingAgent(url)`. "Sincronizar IP con la Nube" calls `autoDiscoverAgent()`,
+      syncs local input from store on success, shows "IP del agente sincronizada desde la nube." All
+      controls disable while `isScanning`.
     - **`agentApi.ts` (`src/shared/api/agentApi.ts`):** `printTicket(dto)` (POST, 8 s timeout),
-      `pingAgent(url?)` (OPTIONS, 3 s timeout), `scanLocalNetworkForAgent()` (scans
-      `192.168.{1,0,68}.*:8081` via `Promise.any`). Always use these — never create ad-hoc axios calls
-      to the agent.
+      `pingAgent(url?)` (OPTIONS, 3 s timeout), `fetchAgentUrlFromCloud()` (authenticated
+      `GET /stores/me/agent` via `apiClient`, returns the stored agent URL or `null` on 404/error —
+      `console.warn` on failure, never throws). Always use these — never create ad-hoc axios calls to
+      the agent. The print agent self-reports its LAN IP to the cloud (`PUT /agent/stores/:id/url`,
+      `X-Agent-Key` header); the frontend no longer scans the LAN for it.

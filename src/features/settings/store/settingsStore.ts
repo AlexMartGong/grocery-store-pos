@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { scanLocalNetworkForAgent } from "../../../shared/api/agentApi";
+import { fetchAgentUrlFromCloud } from "../../../shared/api/agentApi";
 
 const DEFAULT_AGENT_URL = "http://192.168.68.66:8081";
 
@@ -17,17 +17,16 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       localAgentUrl: DEFAULT_AGENT_URL,
       setLocalAgentUrl: (url) => set({ localAgentUrl: normalizeUrl(url) }),
       autoDiscoverAgent: async () => {
-        try {
-          const found = await scanLocalNetworkForAgent();
-          set({ localAgentUrl: normalizeUrl(found) });
+        const url = await fetchAgentUrlFromCloud();
+        if (url) {
+          get().setLocalAgentUrl(url);
           return true;
-        } catch {
-          return false;
         }
+        return false;
       },
     }),
     {
