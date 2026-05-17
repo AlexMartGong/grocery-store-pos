@@ -1,7 +1,9 @@
 import { useEffect, useState, type SyntheticEvent } from "react";
-import { CheckCircle2, Loader2, Network, Printer, XCircle } from "lucide-react";
+import { CheckCircle2, Copy, Loader2, Network, Printer, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { Modal } from "../../../shared/components/ui/Modal";
 import { pingAgent } from "../../../shared/api/agentApi";
+import { useAuthStore } from "../../auth/store/authStore";
 import { useSettingsStore } from "../store/settingsStore";
 
 interface AgentSettingsModalProps {
@@ -19,6 +21,7 @@ type TestState =
 export const AgentSettingsModal = ({ open, onClose }: AgentSettingsModalProps) => {
   const stored = useSettingsStore((s) => s.localAgentUrl);
   const setLocalAgentUrl = useSettingsStore((s) => s.setLocalAgentUrl);
+  const storeId = useAuthStore((s) => s.user?.storeId);
 
   const [url, setUrl] = useState(stored);
   const [test, setTest] = useState<TestState>({ kind: "idle" });
@@ -52,6 +55,23 @@ export const AgentSettingsModal = ({ open, onClose }: AgentSettingsModalProps) =
     setTest({ kind: "testing" });
     const ok = await pingAgent(url.trim());
     setTest({ kind: ok ? "ok" : "fail" });
+  };
+
+  const handleCopyStationId = async () => {
+    if (!storeId) return;
+
+    if (!navigator?.clipboard) {
+      toast.error("Portapapeles no disponible. Requiere conexión segura (HTTPS o localhost).");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(storeId);
+      toast.success("ID copiado al portapapeles");
+    } catch (error) {
+      console.error("Error al copiar al portapapeles:", error);
+      toast.error("No se pudo copiar el ID. Verifica los permisos del navegador.");
+    }
   };
 
   const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
@@ -119,7 +139,7 @@ export const AgentSettingsModal = ({ open, onClose }: AgentSettingsModalProps) =
               ) : (
                 <Network aria-hidden className="h-4 w-4" />
               )}
-              {isScanning ? "Buscando..." : "Auto-detectar red"}
+              {isScanning ? "Sincronizando..." : "Sincronizar IP con la Nube"}
             </button>
           </div>
           {test.kind === "ok" && (
@@ -146,9 +166,36 @@ export const AgentSettingsModal = ({ open, onClose }: AgentSettingsModalProps) =
               className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700"
             >
               <CheckCircle2 aria-hidden className="h-4 w-4" />
-              Caja encontrada y actualizada
+              IP del agente sincronizada desde la nube.
             </span>
           )}
+        </div>
+
+        <hr className="my-6 border-slate-200" />
+
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">
+            Configuración del Agente Local (PC)
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Copia este ID y pégalo como <code>station.id</code> en el archivo{" "}
+            <code>config.properties</code> del agente Java.
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <code className="flex-1 break-all rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 font-mono text-sm text-slate-800">
+              {storeId ?? "No disponible"}
+            </code>
+            <button
+              type="button"
+              onClick={() => void handleCopyStationId()}
+              disabled={!storeId}
+              aria-label="Copiar ID de estación"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Copy aria-hidden className="h-4 w-4" />
+              Copiar
+            </button>
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
