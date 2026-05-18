@@ -540,29 +540,34 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
   `parsed <= 0` and `parsed > outstanding_balance`. Uses `mapCustomersError`. Modal returns `null`
   (renders nothing) when `customer` prop is null or balance is ≤ 0.
 
-- **Agent printer settings (`src/features/settings/`):**
+- **Agent printer settings — multi-station (`src/features/settings/`):** A store has multiple checkout
+  stations (`StoreStation`); each station self-reports its own LAN agent URL to the cloud.
     - **`useSettingsStore` (`src/features/settings/store/settingsStore.ts`):** Persisted Zustand store
-      (`"grocery-pos-settings"` key, `partialize` → `localAgentUrl` only). Exports `setLocalAgentUrl`
-      (normalizes trailing slashes) and `autoDiscoverAgent()` (calls `fetchAgentUrlFromCloud()`, sets
-      URL in store via `setLocalAgentUrl`, returns `boolean`). Default URL: `http://192.168.68.66:8081`.
-    - **`AgentSettingsModal`** opens from `StoreLayout` sidebar (`Printer` icon). Owns local `url`
-      state, `TestState` (`idle | testing | ok | fail | discovered`), and `isScanning` boolean.
-      "Probar conexión" calls `pingAgent(url)`. "Sincronizar IP con la Nube" calls `autoDiscoverAgent()`,
-      syncs local input from store on success, shows "IP del agente sincronizada desde la nube." All
-      controls disable while `isScanning`.
+      (`"grocery-pos-settings"` key, `partialize` → `localAgentUrl` only). Exports only `setLocalAgentUrl`
+      (normalizes trailing slashes). Default URL: `http://192.168.68.66:8081`. No `autoDiscoverAgent` —
+      cloud-sync logic lives in `AgentSettingsModal`, keyed on the selected station.
+    - **`AgentSettingsModal`** opens from `StoreLayout` sidebar (`Printer` icon). Owns local `url` state,
+      `TestState` (`idle | testing | ok | fail | discovered`), `stations: StoreStationResponse[]`, and
+      `selectedStationId`. A `useEffect` on `open` calls `fetchStationsFromCloud()` and pre-selects the
+      first station (lint-safe via `.then` + functional updater). A `<select>` "Caja / Estación" picks
+      the station. "Probar conexión" calls `pingAgent(url)`. "Sincronizar IP con la Nube" looks up the
+      selected station: valid `agentUrl` → `setLocalAgentUrl` + `toast.success("IP sincronizada con la
+      caja")`; null `agentUrl` → `toast.error` (Agente PC apagado). The "Configuración del Agente Local
+      (PC)" block shows the `selectedStationId` UUID (NOT `storeId`) — copy it into `station.id` of the
+      PC `config.properties`.
     - **`agentApi.ts` (`src/shared/api/agentApi.ts`):** `printTicket(dto)` (POST, 8 s timeout),
-      `pingAgent(url?)` (OPTIONS, 3 s timeout), `fetchAgentUrlFromCloud()` (authenticated
-      `GET /stores/me/agent` via `apiClient`, returns the stored agent URL or `null` on 404/error —
-      `console.warn` on failure, never throws). Always use these — never create ad-hoc axios calls to
-      the agent. The print agent self-reports its LAN IP to the cloud (`PUT /agent/stores/:id/url`,
-      `X-Agent-Key` header); the frontend no longer scans the LAN for it.
+      `pingAgent(url?)` (OPTIONS, 3 s timeout), `fetchStationsFromCloud()` (authenticated
+      `GET /stores/me/stations` via `apiClient`, returns `StoreStationResponse[]` — `{ id, name,
+      agentUrl: string | null, status }` — or `[]` on error; `console.warn` on failure, never throws).
+      Always use these — never create ad-hoc axios calls to the agent. Each station self-reports its LAN
+      IP to the cloud; the frontend no longer scans the LAN for it.
 
 - **Physical scale integration (báscula):** The print agent also exposes the serial scale over HTTP
   (`GET /api/scale/weight`, port 8081, permissive CORS). Frontend infra lives in `src/shared/`.
     - **`readScale()` (`src/shared/api/agentApi.ts`):** GET to `${localAgentUrl}/api/scale/weight` with a
       strict per-request 1500 ms timeout (overrides the 8 s `agentClient` default). Returns
       `ScaleReadingDTO { weight: number; isStable: boolean; error?: string | null }`. Never throws —
-      same "safe object always" contract as `pingAgent` / `fetchAgentUrlFromCloud`: on any failure
+      same "safe object always" contract as `pingAgent` / `fetchStationsFromCloud`: on any failure
       returns `{ weight: 0, isStable: false, error: "Báscula desconectada" }`, on missing agent URL
       `error: "Agente no configurado"`. The agent emits `stable` (no `is` prefix) — `readScale` maps
       `stable → isStable`. Always use this helper — never call the scale endpoint ad-hoc.
