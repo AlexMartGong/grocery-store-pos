@@ -556,3 +556,28 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
       `console.warn` on failure, never throws). Always use these — never create ad-hoc axios calls to
       the agent. The print agent self-reports its LAN IP to the cloud (`PUT /agent/stores/:id/url`,
       `X-Agent-Key` header); the frontend no longer scans the LAN for it.
+
+- **Physical scale integration (báscula):** The print agent also exposes the serial scale over HTTP
+  (`GET /api/scale/weight`, port 8081, permissive CORS). Frontend infra lives in `src/shared/`.
+    - **`readScale()` (`src/shared/api/agentApi.ts`):** GET to `${localAgentUrl}/api/scale/weight` with a
+      strict per-request 1500 ms timeout (overrides the 8 s `agentClient` default). Returns
+      `ScaleReadingDTO { weight: number; isStable: boolean; error?: string | null }`. Never throws —
+      same "safe object always" contract as `pingAgent` / `fetchAgentUrlFromCloud`: on any failure
+      returns `{ weight: 0, isStable: false, error: "Báscula desconectada" }`, on missing agent URL
+      `error: "Agente no configurado"`. The agent emits `stable` (no `is` prefix) — `readScale` maps
+      `stable → isStable`. Always use this helper — never call the scale endpoint ad-hoc.
+    - **`useScale(enabled)` hook (`src/shared/hooks/useScale.ts`):** Polls `readScale` every 300 ms via
+      `setInterval`, strictly only while `enabled === true`. Returns `{ reading, isReading }`; `reading`
+      is always defined (initialized to a zero reading) and resets to that initial value when `enabled`
+      turns false (inside `requestAnimationFrame` — lint-safe). An `inFlightRef` skips overlapping
+      requests (1500 ms timeout > 300 ms interval). `clearInterval` on cleanup. setState happens only
+      inside the async `tick` (`useCallback`) — satisfies `react-hooks/set-state-in-effect`.
+    - **`QuantityModal` scale UI (`src/features/sales/components/QuantityModal.tsx`):** For KILO
+      products only, calls `useScale(open && unitOfMeasure === "KILO")` so polling runs only while the
+      modal is open for a weighed product. Renders a "Báscula en vivo" card above the manual input:
+      live weight `font-mono text-3xl font-bold`, badge `bg-emerald-100` when `isStable` else
+      `bg-amber-100` (color + icon + text — WCAG 1.4.1). Fast-Track button `Agregar {weight} kg`
+      (`ShoppingCart` icon, emerald) calls `onConfirm(reading.weight)` directly — adds to cart in one
+      step; disabled when `!reading.isStable` or `reading.error`. The manual `type="number"` input and
+      its `Cancelar` / `Confirmar` buttons stay untouched as the fallback when the scale fails or the
+      cashier needs a different weight — never remove or hide them.

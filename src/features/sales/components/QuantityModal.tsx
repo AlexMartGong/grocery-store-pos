@@ -1,6 +1,7 @@
 import { useId, useState, useEffect } from "react";
-import { Scale, Hash } from "lucide-react";
+import { Scale, Hash, CheckCircle2, AlertTriangle, ShoppingCart } from "lucide-react";
 import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
+import { useScale } from "../../../shared/hooks/useScale";
 import type { UnitOfMeasure } from "../types";
 
 interface QuantityModalProps {
@@ -24,6 +25,7 @@ export const QuantityModal = ({
   const titleId = useId();
   const { render, show } = useModalAnimation(open, { onClose });
   const [value, setValue] = useState(initialValue > 0 ? String(initialValue) : "");
+  const { reading } = useScale(open && unitOfMeasure === "KILO");
 
   useEffect(() => {
     if (open) {
@@ -41,6 +43,11 @@ export const QuantityModal = ({
     const num = Number(value);
     if (!Number.isFinite(num) || num <= 0) return;
     onConfirm(num);
+  };
+
+  const handleQuickAdd = () => {
+    if (!reading.isStable || reading.error) return;
+    onConfirm(reading.weight);
   };
 
   return (
@@ -82,6 +89,61 @@ export const QuantityModal = ({
             </p>
           </div>
         </div>
+
+        {isKilo && (
+          <div className="mb-4 rounded-xl bg-slate-100 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Báscula en vivo
+                </p>
+                <p className="font-mono text-3xl font-bold text-slate-900">
+                  {reading.error ? "—" : reading.weight.toFixed(3)}
+                  <span className="ml-1 font-sans text-base font-medium text-slate-400">
+                    kg
+                  </span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleQuickAdd}
+                disabled={!reading.isStable || Boolean(reading.error)}
+                className="flex shrink-0 items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ShoppingCart aria-hidden className="h-4 w-4" />
+                Agregar {reading.weight.toFixed(3)} kg
+              </button>
+            </div>
+            <div className="mt-2">
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  reading.error
+                    ? "bg-amber-100 text-amber-700"
+                    : reading.isStable
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-amber-100 text-amber-700"
+                }`}
+              >
+                {reading.error ? (
+                  <>
+                    <AlertTriangle aria-hidden className="h-3.5 w-3.5" />
+                    {reading.error}
+                  </>
+                ) : reading.isStable ? (
+                  <>
+                    <CheckCircle2 aria-hidden className="h-3.5 w-3.5" />
+                    Peso estable
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle aria-hidden className="h-3.5 w-3.5" />
+                    Estabilizando…
+                  </>
+                )}
+              </span>
+            </div>
+          </div>
+        )}
 
         <label
           htmlFor={inputId}

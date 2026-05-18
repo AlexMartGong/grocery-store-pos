@@ -49,6 +49,21 @@ export interface AgentPrintResponse {
   error?: string;
 }
 
+export interface ScaleReadingDTO {
+  weight: number;
+  isStable: boolean;
+  error?: string | null;
+}
+
+interface AgentScaleResponse {
+  success: boolean;
+  weight?: number;
+  unit?: string;
+  stable?: boolean;
+  connected?: boolean;
+  error?: string | null;
+}
+
 const agentClient = axios.create({
   timeout: 8000,
   headers: { "Content-Type": "application/json" },
@@ -72,6 +87,27 @@ export const pingAgent = async (urlOverride?: string): Promise<boolean> => {
     return true;
   } catch {
     return false;
+  }
+};
+
+export const readScale = async (): Promise<ScaleReadingDTO> => {
+  const baseUrl = useSettingsStore.getState().localAgentUrl;
+  if (!baseUrl) {
+    return { weight: 0, isStable: false, error: "Agente no configurado" };
+  }
+  try {
+    const res = await agentClient.get<AgentScaleResponse>(
+      `${baseUrl}/api/scale/weight`,
+      { timeout: 1500 },
+    );
+    const data = res.data;
+    return {
+      weight: data.weight ?? 0,
+      isStable: data.stable ?? false,
+      error: data.error ?? null,
+    };
+  } catch {
+    return { weight: 0, isStable: false, error: "Báscula desconectada" };
   }
 };
 
