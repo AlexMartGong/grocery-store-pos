@@ -111,12 +111,23 @@ export const readScale = async (): Promise<ScaleReadingDTO> => {
   }
 };
 
-export const fetchAgentUrlFromCloud = async (): Promise<string | null> => {
+export interface StoreStationResponse {
+  id: string;
+  name: string;
+  agentUrl: string | null;
+  status: string;
+}
+
+export const fetchStationsFromCloud = async (): Promise<
+  StoreStationResponse[]
+> => {
   try {
-    const res = await apiClient.get<{ url: string }>("/stores/me/agent");
-    return res.data.url;
+    const res = await apiClient.get<StoreStationResponse[]>(
+      "/stores/me/stations",
+    );
+    return res.data;
   } catch (err) {
-    console.warn("No se pudo obtener la URL del agente desde la nube", err);
-    return null;
+    console.warn("No se pudieron obtener las cajas desde la nube", err);
+    return [];
   }
 };

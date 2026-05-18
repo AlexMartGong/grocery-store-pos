@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
-import { Loader2, Printer, Wifi, X } from "lucide-react";
+import { Loader2, Printer, X } from "lucide-react";
 import type { CartItem, SalePaymentMethod, SaleResponse } from "../types";
 import { formatMoney, formatSaleDate, formatSaleId } from "../utils/format";
 import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
 import { printTicket } from "../../../shared/api/agentApi";
 import { mapSaleToTicketDTO } from "../utils/ticketAdapter";
 import { playBeep, playErrorBeep, vibrate } from "../../../shared/utils/feedback";
-import { useSettingsStore } from "../../settings/store/settingsStore";
 
 interface SaleSummaryModalProps {
   sale: SaleResponse | null;
@@ -41,8 +39,6 @@ export const SaleSummaryModal = ({
   const open = sale != null;
   const [cached, setCached] = useState<SaleResponse | null>(sale);
   const [isPrinting, setIsPrinting] = useState(false);
-  const [networkError, setNetworkError] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
   const { render, show } = useModalAnimation(open, { onClose });
 
   useEffect(() => {
@@ -66,7 +62,6 @@ export const SaleSummaryModal = ({
       });
       const res = await printTicket(dto);
       if (res.success) {
-        setNetworkError(false);
         playBeep();
         vibrate(50);
         onPrintFeedback?.(true, `Ticket #${res.ticketId} impreso`);
@@ -78,31 +73,15 @@ export const SaleSummaryModal = ({
           `Error de impresión: ${res.error ?? "desconocido"}`,
         );
       }
-    } catch (err) {
+    } catch {
       playErrorBeep();
       vibrate([60, 50, 60]);
-      if (axios.isAxiosError(err) && err.code === "ERR_NETWORK") {
-        setNetworkError(true);
-      }
-      onPrintFeedback?.(false, "No se pudo conectar al agente local");
+      onPrintFeedback?.(
+        false,
+        "No se pudo conectar al agente local. Configura la caja en Ajustes › Agente.",
+      );
     } finally {
       setIsPrinting(false);
-    }
-  };
-
-  const handleAutoDiscover = async () => {
-    setIsScanning(true);
-    try {
-      const ok = await useSettingsStore.getState().autoDiscoverAgent();
-      if (ok) {
-        setNetworkError(false);
-        onPrintFeedback?.(true, "Caja encontrada. Reintentando...");
-        await handlePrint();
-      } else {
-        onPrintFeedback?.(false, "No se encontró ninguna caja en la red local");
-      }
-    } finally {
-      setIsScanning(false);
     }
   };
 
@@ -146,7 +125,6 @@ export const SaleSummaryModal = ({
           <button
             type="button"
             onClick={onClose}
-            disabled={isScanning}
             aria-label="Cerrar"
             className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -226,30 +204,14 @@ export const SaleSummaryModal = ({
           <button
             type="button"
             onClick={onClose}
-            disabled={isScanning}
             className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cerrar
           </button>
-          {networkError && (
-            <button
-              type="button"
-              onClick={() => void handleAutoDiscover()}
-              disabled={isScanning || isPrinting}
-              className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isScanning ? (
-                <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
-              ) : (
-                <Wifi aria-hidden className="h-4 w-4" />
-              )}
-              {isScanning ? "Buscando..." : "Buscar caja en la red"}
-            </button>
-          )}
           <button
             type="button"
             onClick={() => void handlePrint()}
-            disabled={isPrinting || isScanning}
+            disabled={isPrinting}
             className="flex w-40 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isPrinting ? (
