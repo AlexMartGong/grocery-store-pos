@@ -31,6 +31,12 @@ Senior Frontend Engineer building a multi-tenant POS SPA.
 - **Framework:** React 19 + TypeScript 6 via Vite 8.
 - **Styling:** Tailwind CSS v4 (CSS-first engine, no `tailwind.config.js`).
 - **State:** Zustand 5. **Routing:** React Router DOM v7. **HTTP:** Axios.
+- **Toasts:** `sonner` ^2.0.7 — single `<Toaster richColors position="top-right" />` mounted in
+  `src/App.tsx`. Use `import { toast } from "sonner"` (`toast.success` / `toast.error`) for non-blocking
+  feedback. Do not add a second toast library or a second `<Toaster>` instance.
+- **JWT decode:** `jwt-decode` ^4.0.0 — only via helpers in `src/features/auth/utils/token.ts`
+  (`decodeToken`, `isExpired`, `toAuthUser`). Never call `jwtDecode` directly elsewhere.
+- **Barcode camera:** `html5-qrcode` 2.3.8 — only via `src/shared/components/scanner/CameraScannerModal.tsx`.
 - **Backend:** Spring Boot 4.0 (Java 21) REST API, JWT auth, RBAC (Store Users vs SaaS Admins),
   ProblemDetails/ErrorResponse error structures.
 - Two auth flows: `OWNER`/`CASHIER` vs `SUPER_ADMIN`. Highly responsive POS UI.

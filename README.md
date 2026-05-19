@@ -45,9 +45,13 @@ src/
   features/
     admin/        # SUPER_ADMIN provisioning flows (cold-start OWNER user)
     auth/         # Store + Admin login, JWT decoding, session store
-    customers/    # Customer CRUD with credit-limit tracking
-    pos/          # POS placeholder (sales flow pending)
+    cash/         # Cash-shift lifecycle (open / close, gate over /pos/*)
+    customers/    # Customer CRUD with credit-limit tracking + payments
+    inventory/    # Manual stock adjustments (OWNER)
+    notifications/# Server-push alerts (low stock, overdue credit) for OWNER
     products/     # Catalog + inventory with quick price / stock adjustments
+    sales/        # POS checkout UI, sales history, ticket / agent printing
+    settings/     # Local agent printer + station configuration
     stores/       # SaaS-admin store management
     users/        # Per-tenant staff (CASHIER / OWNER) management
   routes/
@@ -86,7 +90,9 @@ and `role`.
   /admin/stores/:id/edit            StoreForm (edit)
   /admin/stores/:id/provision-owner ProvisionOwnerForm
 /pos                                StoreGuard → StoreLayout
-  /pos                              PosPlaceholder
+  /pos                              redirect → /pos/sales
+  /pos/sales                        PosScreen      (cash register UI)
+  /pos/sales-history                SalesList      (paginated history + reprint)
   /pos/products                     ProductsList   (OWNER + CASHIER read)
   /pos/customers                    CustomersList  (OWNER + CASHIER read/write)
   /pos/customers/new                CustomerForm
