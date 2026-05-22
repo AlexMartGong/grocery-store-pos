@@ -21,8 +21,8 @@ export const StoreLogin = () => {
           <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
             <Store className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-semibold text-slate-900">Sign in to your store</h1>
-          <p className="text-sm text-slate-500">Cashiers and owners</p>
+          <h1 className="text-2xl font-semibold text-slate-900">Inicia sesión en tu tienda</h1>
+          <p className="text-sm text-slate-500">Cajeros y propietarios</p>
         </header>
 
         {error && (
@@ -38,43 +38,45 @@ export const StoreLogin = () => {
         <form onSubmit={onSubmit} className="space-y-4">
           <Field
             id="storeCode"
-            label="Store code"
+            label="Código de tienda"
             icon={<Store className="w-4 h-4" />}
             value={storeCode}
             onChange={setStoreCode}
             autoComplete="organization"
-            placeholder="STORE001"
+            placeholder="ej. STORE001"
           />
           <Field
             id="username"
-            label="Username"
+            label="Usuario"
             icon={<User className="w-4 h-4" />}
             value={username}
             onChange={setUsername}
             autoComplete="username"
+            placeholder="Ingresa tu usuario"
           />
           <Field
             id="password"
-            label="Password"
+            label="Contraseña"
             type="password"
             icon={<Lock className="w-4 h-4" />}
             value={password}
             onChange={setPassword}
             autoComplete="current-password"
+            placeholder="••••••••"
           />
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Iniciando sesión..." : "Iniciar sesión"}
           </button>
         </form>
 
         <p className="text-center text-sm text-slate-500">
-          SaaS Administrator?{" "}
+          ¿Administrador SaaS?{" "}
           <Link to="/admin/login" className="text-emerald-700 hover:underline">
-            Sign in here
+            Inicia sesión aquí
           </Link>
         </p>
       </div>
