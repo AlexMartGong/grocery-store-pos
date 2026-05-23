@@ -16,10 +16,33 @@ export async function getSales(params: {
   page: number;
   size: number;
   sort?: string;
+  customerId?: string;
+  paymentMethod?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
 }): Promise<PageResponse<SaleResponse>> {
-  const { page, size, sort = "createdAt,desc" } = params;
+  const {
+    page,
+    size,
+    sort = "createdAt,desc",
+    customerId,
+    paymentMethod,
+    search,
+    startDate,
+    endDate,
+  } = params;
   const res = await apiClient.get<PageResponse<SaleResponse>>("/sales", {
-    params: { page, size, sort },
+    params: {
+      page,
+      size,
+      sort,
+      ...(customerId ? { customerId } : {}),
+      ...(paymentMethod ? { paymentMethod } : {}),
+      ...(search ? { search } : {}),
+      ...(startDate ? { startDate } : {}),
+      ...(endDate ? { endDate } : {}),
+    },
   });
   return res.data;
 }

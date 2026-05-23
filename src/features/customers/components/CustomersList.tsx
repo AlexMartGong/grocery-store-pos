@@ -6,6 +6,7 @@ import {
   DollarSign,
   Pencil,
   Plus,
+  ReceiptText,
   Search,
   Trash2,
   UserRound,
@@ -262,6 +263,14 @@ export const CustomersList = () => {
                       >
                         <Pencil className="h-4 w-4" /> Editar
                       </button>
+                      <Link
+                        to={`/pos/sales-history?customerId=${c.id}`}
+                        title="Ver historial de compras"
+                        aria-label={`Ver historial de compras de ${c.full_name}`}
+                        className="inline-flex min-w-32 flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                      >
+                        <ReceiptText className="h-4 w-4" /> Historial
+                      </Link>
                       {hasDebt(c) && (
                         <button
                           type="button"
@@ -368,6 +377,14 @@ export const CustomersList = () => {
                             >
                               <Pencil className="h-3.5 w-3.5" /> Editar
                             </button>
+                            <Link
+                              to={`/pos/sales-history?customerId=${c.id}`}
+                              title="Ver historial de compras"
+                              aria-label={`Ver historial de compras de ${c.full_name}`}
+                              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                            >
+                              <ReceiptText className="h-3.5 w-3.5" /> Historial
+                            </Link>
                             {hasDebt(c) && (
                               <button
                                 type="button"

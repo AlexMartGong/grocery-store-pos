@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   Ban,
@@ -6,10 +7,14 @@ import {
   ListOrdered,
   Loader2,
   ReceiptText,
+  Search,
+  X,
   XCircle,
 } from "lucide-react";
 import { getSales } from "../api/salesApi";
 import { getProductById } from "../../products/api/productsApi";
+import { getCustomerById } from "../../customers/api/customersApi";
+import { useDebounce } from "../../../shared/hooks/useDebounce";
 import { mapSalesError } from "../utils/errorMessages";
 import { formatMoney, formatSaleDate, formatSaleId } from "../utils/format";
 import { SaleSummaryModal } from "./SaleSummaryModal";
@@ -48,11 +53,21 @@ const STATUS_BADGE: Record<SaleStatus, string> = {
 };
 
 export const SalesList = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const customerId = searchParams.get("customerId") ?? undefined;
+
   const [sales, setSales] = useState<SaleResponse[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebounce(searchInput, 400);
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [customerName, setCustomerName] = useState<string | null>(null);
 
   const [selectedSale, setSelectedSale] = useState<SaleResponse | null>(null);
   const [modalCartItems, setModalCartItems] = useState<CartItem[]>([]);
@@ -72,7 +87,15 @@ export const SalesList = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getSales({ page, size: PAGE_SIZE });
+      const data = await getSales({
+        page,
+        size: PAGE_SIZE,
+        customerId,
+        paymentMethod: paymentMethod || undefined,
+        search: debouncedSearch || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      });
       setSales(data.content);
       setTotalPages(data.totalPages);
     } catch (err) {
@@ -80,11 +103,39 @@ export const SalesList = () => {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, customerId, paymentMethod, debouncedSearch, startDate, endDate]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [customerId, paymentMethod, debouncedSearch, startDate, endDate]);
+
+  useEffect(() => {
+    if (!customerId) {
+      setCustomerName(null);
+      return;
+    }
+    let alive = true;
+    getCustomerById(customerId)
+      .then((c) => {
+        if (alive) setCustomerName(c.full_name);
+      })
+      .catch(() => {
+        if (alive) setCustomerName(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [customerId]);
+
+  const clearCustomer = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("customerId");
+    setSearchParams(next, { replace: true });
+  };
 
   const openSale = async (sale: SaleResponse) => {
     setLoadingDetailId(sale.id);
@@ -143,6 +194,74 @@ export const SalesList = () => {
             </p>
           </div>
         </header>
+
+        {customerId && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-sm text-slate-700">
+              Mostrando ventas de:{" "}
+              <strong className="font-semibold text-slate-900">
+                {customerName ?? `Cliente #${customerId.slice(0, 8).toUpperCase()}`}
+              </strong>
+            </p>
+            <button
+              type="button"
+              onClick={clearCustomer}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+            >
+              <X className="h-4 w-4" /> Limpiar cliente
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-48 flex-1">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Buscar por folio..."
+              aria-label="Buscar por folio"
+              className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
+            />
+          </div>
+          <select
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            aria-label="Método de pago"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
+          >
+            <option value="">Todos los métodos</option>
+            {Object.entries(METHOD_LABEL).map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center gap-2">
+            <label htmlFor="startDate" className="text-sm font-medium text-slate-600">Desde:</label>
+            <input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label htmlFor="endDate" className="text-sm font-medium text-slate-600">Hasta:</label>
+            <input
+                id="endDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
+            />
+          </div>
+        </div>
 
         {error && (
           <div
