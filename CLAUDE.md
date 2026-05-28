@@ -4,7 +4,8 @@ Guidance for Claude Code on the `grocery-store` POS/SaaS frontend.
 
 > **Companion file:** [`AGENTS.md`](./AGENTS.md) holds the same rules for non-Claude agents. **Keep both
 > files byte-for-byte equivalent below the title block** — every edit here MUST be mirrored there in the
-> same commit. User setup lives in [`README.md`](./README.md); this file is the engineering rulebook.
+> same commit. Verify with `diff <(sed -n '/^## 0\. Commands/,$p' CLAUDE.md) <(sed -n '/^## 0\. Commands/,$p' AGENTS.md)`
+> (exits 0 when in sync). User setup lives in [`README.md`](./README.md); this file is the engineering rulebook.
 
 ## 0. Commands
 
@@ -23,6 +24,21 @@ Guidance for Claude Code on the `grocery-store` POS/SaaS frontend.
 
 **Environment.** Copy `.env.example` → `.env`; only var is `VITE_API_URL` (default `http://localhost:8080`).
 The `/api/v1` prefix is appended by `apiClient` — do not include it in the env value or feature paths.
+
+## Quick orientation (read first)
+
+Feature-driven React SPA. Two auth flows backed by separate endpoints (`/auth/login` store users →
+`/pos`, `/admin/login` SaaS admins → `/admin/stores`), three guards (`AdminGuard`, `StoreGuard`,
+`OwnerGuard`) under `src/routes/guards/`. Every `src/features/<domain>/` folder follows the same
+skeleton: `api/`, `components/`, `hooks/`, `store/`, `types/`, `utils/`. Cross-feature state lives in
+Zustand stores (`useAuthStore`, `usePosStore`, `useCashShiftStore`, `useNotificationStore`,
+`useSettingsStore`); each exposes `reset()` and `authStore.logout` chains them so a user-switch or
+silent 401 wipes everything. All HTTP goes through `src/shared/api/api.ts` (`apiClient`) —
+interceptors attach the JWT and turn `401` into a silent global logout. Cash shifts gate every
+`/pos/*` route via a mandatory `OpenShiftModal`. Tailwind v4 (no config file); all custom CSS lives
+in `src/index.css`. No test runner — verify with `pnpm lint && pnpm build` plus manual checks via
+`pnpm dev`. Detailed conventions for every feature module live in §3 below; use the wayfinding map
+at the top of that section to jump to the right rule.
 
 ## 1. Stack & Role
 
@@ -117,7 +133,28 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 
 ## 3. Established Conventions (reuse, do not reinvent)
 
-`auth` and `stores` modules set the precedent. Subsequent features MUST reuse these primitives:
+`auth` and `stores` modules set the precedent.
+
+**Wayfinding for this section** — where each topic lives below:
+
+- **Shared HTTP, auth session, guards, routing, error mapping** — first cluster of bullets
+  (`apiClient`, `useAuthStore`, `AdminGuard`/`StoreGuard`/`OwnerGuard`, `mapXxxError` registry).
+- **DTO conventions** — "DTO immutability & minimal surface", "DTO field naming mirrors wire format",
+  "BigDecimal as `string` in TS".
+- **Layout & responsive UI** — "Layout nesting", "Responsive data tables", "Mobile menu / drawer
+  shared hook", "Modal entrance / exit animation pattern", "Mobile slide-in drawer pattern", "Global
+  scrollbar-gutter", "POS full-bleed layout escape".
+- **List patterns** — "List search pattern (remote vs local)", "Cross-feature deep-link via URL
+  params", "Self-action protection", "Hide actions already in target state", "Threshold warning
+  indicators", "Inline destructive confirmation".
+- **POS / cart** — "POS / sales module" + "Sales history list".
+- **Cash shift gate** — "Cash shifts module (`/pos/*` gate)".
+- **Scanner & scale** — "Barcode scanning (dual: HID scanner + camera)", "Physical scale integration".
+- **Notifications, inventory, credit payments** — short sub-sections near the end.
+- **Agent printer settings** — "Agent printer settings — multi-station".
+- **Lint compliance** — "Lint compliance — `react-hooks/set-state-in-effect`" and "`react-hooks/refs`".
+
+Subsequent features MUST reuse these primitives:
 
 - **Axios client:** `src/shared/api/api.ts` exports `apiClient`. All feature APIs import this — no
   per-feature Axios instances. Auth header + 401→logout interceptors already wired.
@@ -503,7 +540,13 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
       inside the start effect is wrapped in `requestAnimationFrame` to satisfy
       `react-hooks/set-state-in-effect`. `Html5Qrcode.stop()` is called from a try/catch wrapper since
       it rejects if not scanning. Reuse this modal — do not instantiate `Html5Qrcode` ad-hoc per
-      feature.
+      feature. **Viewfinder layout:** outer container is
+      `relative overflow-hidden rounded-xl bg-slate-900 aspect-square sm:aspect-video flex items-center justify-center`
+      and the scanner div is bare `w-full` (parent owns crop + rounding) so the qrbox stays centered
+      across portrait (phone) and landscape (desktop) video. The qrbox itself is a dynamic function
+      sized at 70% of `Math.min(viewfinderWidth, viewfinderHeight)`. Do **not** apply
+      `[&_video]:object-cover` or `absolute inset-0` to the scanner div, and do **not** set a static
+      `qrbox` / `aspectRatio` in the config — both desync the qrbox overlay from the video feed.
     - **Feedback utils (`src/shared/utils/feedback.ts`):** `playBeep(durationMs?, freq?)` (singleton
       `AudioContext`, square wave 1200Hz/90ms by default), `playErrorBeep()` (220Hz/140ms), and
       `vibrate(pattern)` (no-op when `navigator.vibrate` absent). Always pair a successful scan with
