@@ -92,7 +92,13 @@ export const CameraScannerModal = ({
     };
 
     const config = {
-      fps: 10
+      fps: 10,
+      qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+        const minEdgePercentage = 0.7;
+        const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+        const qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
+        return { width: qrboxSize, height: qrboxSize };
+      },
     };
 
     const onDecoded = (decoded: string) => {
