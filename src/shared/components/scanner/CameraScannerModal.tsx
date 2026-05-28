@@ -25,18 +25,28 @@ const FORMATS = [
 ];
 
 const errorMessageFor = (err: unknown): string => {
-  const name = err instanceof Error ? err.name : "";
-  const message = err instanceof Error ? err.message : String(err);
-  if (name === "NotAllowedError" || /permission/i.test(message)) {
+  const errStr = String(err);
+  const name =
+    err instanceof Error
+      ? err.name
+      : err && typeof err === "object" && "name" in err
+        ? String((err as { name: unknown }).name)
+        : "";
+
+  if (name === "NotAllowedError" || /permission|denied|permiso/i.test(errStr)) {
     return "Permiso de cámara denegado. Habilítalo en los ajustes del navegador.";
   }
-  if (name === "NotFoundError" || /not.*found/i.test(message)) {
-    return "No se detectó ninguna cámara disponible.";
+  if (
+    name === "NotFoundError" ||
+    name === "OverconstrainedError" ||
+    /not.*found|overconstrained/i.test(errStr)
+  ) {
+    return "No se detectó ninguna cámara compatible.";
   }
-  if (name === "NotReadableError") {
+  if (name === "NotReadableError" || /in use/i.test(errStr)) {
     return "La cámara está en uso por otra aplicación.";
   }
-  return "No se pudo iniciar la cámara. Intenta de nuevo.";
+  return `Error: ${errStr.substring(0, 60)}`;
 };
 
 export const CameraScannerModal = ({
@@ -54,6 +64,7 @@ export const CameraScannerModal = ({
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
   const [retryNonce, setRetryNonce] = useState(0);
+  const currentScannerId = `${SCAN_REGION_ID}-${retryNonce}`;
 
   useEffect(() => {
     onScanRef.current = onScan;
@@ -91,24 +102,24 @@ export const CameraScannerModal = ({
       });
     };
 
-    const startWithFallback = async (s: Html5Qrcode) => {
-      try {
-        await s.start({ facingMode: { ideal: "environment" } }, config, onDecoded, () => {});
-        return;
-      } catch (err) {
-        const name = err instanceof Error ? err.name : "";
-        if (name !== "NotFoundError" && !/not.*found/i.test(String(err))) throw err;
-      }
+    const startScanner = async (s: Html5Qrcode) => {
       const cameras = await Html5Qrcode.getCameras();
-      if (!cameras.length) {
+      if (!cameras || cameras.length === 0) {
         throw Object.assign(new Error("No cameras"), { name: "NotFoundError" });
       }
-      await s.start(cameras[0].id, config, onDecoded, () => {});
+      const backCam = cameras.find(
+        (c) =>
+          c.label.toLowerCase().includes("back") ||
+          c.label.toLowerCase().includes("environment") ||
+          c.label.toLowerCase().includes("trasera"),
+      );
+      const camId = backCam ? backCam.id : cameras[0].id;
+      await s.start(camId, config, onDecoded, () => {});
     };
 
     const raf = requestAnimationFrame(() => {
       if (cancelled) return;
-      const node = document.getElementById(SCAN_REGION_ID);
+      const node = document.getElementById(currentScannerId);
       if (!node) {
         requestAnimationFrame(() => {
           setError("No se pudo iniciar la cámara. Intenta de nuevo.");
@@ -122,10 +133,10 @@ export const CameraScannerModal = ({
         setStarting(true);
       });
 
-      scanner = new Html5Qrcode(SCAN_REGION_ID, { formatsToSupport: FORMATS, verbose: false });
+      scanner = new Html5Qrcode(currentScannerId, { formatsToSupport: FORMATS, verbose: false });
       scannerRef.current = scanner;
 
-      startWithFallback(scanner)
+      startScanner(scanner)
         .then(() => {
           if (cancelled) {
             void stop();
@@ -149,7 +160,7 @@ export const CameraScannerModal = ({
       void stop();
       scannerRef.current = null;
     };
-  }, [render, retryNonce]);
+  }, [render, retryNonce, currentScannerId]);
 
   if (!render) return null;
 
@@ -190,9 +201,9 @@ export const CameraScannerModal = ({
         </div>
 
         <div className="mt-4 space-y-3">
-          <div className="relative overflow-hidden rounded-xl bg-slate-900 aspect-[4/3]">
+          <div className="relative overflow-hidden rounded-xl bg-slate-900 aspect-4/3">
             <div
-              id={SCAN_REGION_ID}
+              id={currentScannerId}
               className="absolute inset-0 [&_video]:h-full [&_video]:w-full [&_video]:object-cover"
             />
             {starting && !error && (
