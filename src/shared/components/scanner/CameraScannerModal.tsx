@@ -209,8 +209,8 @@ export const CameraScannerModal = ({
         </div>
 
         <div className="mt-4 space-y-3">
-          <div className="relative overflow-hidden rounded-xl bg-slate-900 aspect-square sm:aspect-video">
-            <div id={currentScannerId} className="w-full overflow-hidden rounded-xl" />
+          <div className="relative overflow-hidden rounded-xl bg-slate-900 aspect-square sm:aspect-video flex items-center justify-center">
+            <div id={currentScannerId} className="w-full" />
             {starting && !error && (
               <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-200">
                 Iniciando cámara...
