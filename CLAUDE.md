@@ -53,6 +53,12 @@ Senior Frontend Engineer building a multi-tenant POS SPA.
 - **JWT decode:** `jwt-decode` ^4.0.0 — only via helpers in `src/features/auth/utils/token.ts`
   (`decodeToken`, `isExpired`, `toAuthUser`). Never call `jwtDecode` directly elsewhere.
 - **Barcode camera:** `html5-qrcode` 2.3.8 — only via `src/shared/components/scanner/CameraScannerModal.tsx`.
+- **PWA:** `vite-plugin-pwa` ^1.3.0 — `VitePWA` plugin in `vite.config.ts`, `registerType: 'autoUpdate'`
+  (cashiers get latest code on reload, no manual step), manifest `display: "standalone"` so the POS
+  installs as a native-like app on Windows/Android/iOS. Service worker is **auto-generated** — never
+  hand-write SW files. Icons: `logo.svg` (`sizes: 'any'`) plus `pwa-192x192.png` / `pwa-512x512.png`
+  (PNGs added to `public/` manually). PWA `<head>` meta (`theme-color #0f172a`, `apple-touch-icon`) lives
+  in `index.html`.
 - **Backend:** Spring Boot 4.0 (Java 21) REST API, JWT auth, RBAC (Store Users vs SaaS Admins),
   ProblemDetails/ErrorResponse error structures.
 - Two auth flows: `OWNER`/`CASHIER` vs `SUPER_ADMIN`. Highly responsive POS UI.
