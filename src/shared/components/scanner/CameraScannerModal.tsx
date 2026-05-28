@@ -49,60 +49,99 @@ export const CameraScannerModal = ({
   const { render, show } = useModalAnimation(open, { onClose });
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const handledRef = useRef(false);
+  const onScanRef = useRef(onScan);
+  const onCloseRef = useRef(onClose);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
   const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
     if (!render) return;
     handledRef.current = false;
     let cancelled = false;
-
-    const raf = requestAnimationFrame(() => {
-      setError(null);
-      setStarting(true);
-    });
-
-    const scanner = new Html5Qrcode(SCAN_REGION_ID, { formatsToSupport: FORMATS, verbose: false });
-    scannerRef.current = scanner;
+    let scanner: Html5Qrcode | null = null;
 
     const stop = async () => {
+      const s = scanner;
+      if (!s) return;
       try {
-        if (scanner.isScanning) await scanner.stop();
-        scanner.clear();
+        if (s.isScanning) await s.stop();
+        s.clear();
       } catch {
         /* ignore — already stopped or never started */
       }
     };
 
-    scanner
-      .start(
-        { facingMode: { ideal: "environment" } },
-        { fps: 10, qrbox: { width: 280, height: 180 }, aspectRatio: 1.333 },
-        (decoded) => {
-          if (handledRef.current) return;
-          handledRef.current = true;
-          void stop().then(() => {
-            onScan(decoded);
-            onClose();
-          });
-        },
-        () => {
-          /* per-frame decode failures are noise — ignore */
-        },
-      )
-      .then(() => {
-        if (cancelled) {
-          void stop();
-          return;
-        }
-        setStarting(false);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(errorMessageFor(err));
-        setStarting(false);
+    const config = { fps: 10, qrbox: { width: 280, height: 180 }, aspectRatio: 1.333 };
+
+    const onDecoded = (decoded: string) => {
+      if (handledRef.current) return;
+      handledRef.current = true;
+      void stop().then(() => {
+        onScanRef.current(decoded);
+        onCloseRef.current();
       });
+    };
+
+    const startWithFallback = async (s: Html5Qrcode) => {
+      try {
+        await s.start({ facingMode: { ideal: "environment" } }, config, onDecoded, () => {});
+        return;
+      } catch (err) {
+        const name = err instanceof Error ? err.name : "";
+        if (name !== "NotFoundError" && !/not.*found/i.test(String(err))) throw err;
+      }
+      const cameras = await Html5Qrcode.getCameras();
+      if (!cameras.length) {
+        throw Object.assign(new Error("No cameras"), { name: "NotFoundError" });
+      }
+      await s.start(cameras[0].id, config, onDecoded, () => {});
+    };
+
+    const raf = requestAnimationFrame(() => {
+      if (cancelled) return;
+      const node = document.getElementById(SCAN_REGION_ID);
+      if (!node) {
+        requestAnimationFrame(() => {
+          setError("No se pudo iniciar la cámara. Intenta de nuevo.");
+          setStarting(false);
+        });
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        setError(null);
+        setStarting(true);
+      });
+
+      scanner = new Html5Qrcode(SCAN_REGION_ID, { formatsToSupport: FORMATS, verbose: false });
+      scannerRef.current = scanner;
+
+      startWithFallback(scanner)
+        .then(() => {
+          if (cancelled) {
+            void stop();
+            return;
+          }
+          requestAnimationFrame(() => setStarting(false));
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          const msg = errorMessageFor(err);
+          requestAnimationFrame(() => {
+            setError(msg);
+            setStarting(false);
+          });
+        });
+    });
 
     return () => {
       cancelled = true;
@@ -110,7 +149,7 @@ export const CameraScannerModal = ({
       void stop();
       scannerRef.current = null;
     };
-  }, [render, retryNonce, onScan, onClose]);
+  }, [render, retryNonce]);
 
   if (!render) return null;
 
