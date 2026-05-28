@@ -91,7 +91,9 @@ export const CameraScannerModal = ({
       }
     };
 
-    const config = { fps: 10, qrbox: { width: 280, height: 180 }, aspectRatio: 1.333 };
+    const config = {
+      fps: 10
+    };
 
     const onDecoded = (decoded: string) => {
       if (handledRef.current) return;
@@ -201,11 +203,8 @@ export const CameraScannerModal = ({
         </div>
 
         <div className="mt-4 space-y-3">
-          <div className="relative overflow-hidden rounded-xl bg-slate-900 aspect-4/3">
-            <div
-              id={currentScannerId}
-              className="absolute inset-0 [&_video]:h-full [&_video]:w-full [&_video]:object-cover"
-            />
+          <div className="relative overflow-hidden rounded-xl bg-slate-900 aspect-square sm:aspect-video">
+            <div id={currentScannerId} className="w-full overflow-hidden rounded-xl" />
             {starting && !error && (
               <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-200">
                 Iniciando cámara...

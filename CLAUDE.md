@@ -274,6 +274,15 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
   Productos, `UserRound` → Clientes, `Users` → Usuarios (staff). New nav targets must pick a glyph not
   already used.
 
+- **Cross-feature deep-link via URL params:** When a list links into another feature's filtered view
+  (e.g. `CustomersList` → `/pos/sales-history?customerId=<id>`), encode the filter as a query param
+  rather than navigating via global state. Target view reads with `useSearchParams`, renders a removable
+  chip naming the filtered entity, and clears it with `setSearchParams(next)` (where `next` deletes the
+  key). Resolve human-readable labels with a lightweight fetch (e.g., `getCustomerById` on mount). Keeps
+  the URL shareable and avoids coupling features through Zustand. Reference:
+  `src/features/customers/components/CustomersList.tsx` (link) and
+  `src/features/sales/components/SalesList.tsx` (consumer).
+
 - **POS / sales module (`/pos/sales`):** Cash register UI lives in `src/features/sales/`. Reusable parts:
     - **Cart store (`src/features/sales/store/posStore.ts`):** `usePosStore` exposes
       `{ cart, selectedCustomerId, addItem, updateItemQuantity, removeItem, setCustomer, clearCart }`.
@@ -338,8 +347,13 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 - **Sales history list (`/pos/sales-history`):** Read-only paginated list. Component:
   `src/features/sales/components/SalesList.tsx`. Reuses `SaleSummaryModal` and formatters from
   `sales/utils/format.ts`.
-    - **No search:** `GET /sales` only accepts `page`/`size`/`sort` — omit search UI until backend adds.
-      Never add a filter that silently does nothing server-side.
+    - **Server-side filters available:** `GET /sales` accepts `page`/`size`/`sort` plus `customerId`
+      (UUID string), `paymentMethod`, `search` (case-insensitive substring), `startDate` / `endDate`
+      (ISO date strings). `SalesList.tsx` reads them from URL params via `useSearchParams` so links are
+      shareable. Deep-link `/pos/sales-history?customerId=<id>` from `CustomersList` filters the history
+      by customer and renders a removable chip that clears the param via `setSearchParams(next)`. Search
+      input uses `useDebounce(searchInput, 400)` + a dedicated `useEffect(() => setPage(0), [filters])`
+      reset. Reuse this pattern for future filters — never add a filter the backend silently ignores.
     - **On-demand product name resolution:** `openSale(sale)` calls
       `Promise.all(uniqueProductIds.map(id => getProductById(id).catch(() => null)))`, builds
       `CartItem[]`, passes to `SaleSummaryModal`. Individual 404s fall back to name `"Producto"` so they
@@ -356,7 +370,8 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
       section in `SaleSummaryModal` is auto-hidden by its own `showCash`/`showChange` guards.
     - **Sale cancellation (`CancelSaleModal`):** `src/features/sales/components/CancelSaleModal.tsx` —
       opens from `SalesList` (OWNER only). Calls `cancelSale(id, reason, notes?)` which posts to
-      `DELETE /sales/:id` with body. `CancellationReason = "CASHIER_ERROR" | "CUSTOMER_REGRET" |
+      `POST /sales/:id/cancel` with body `{ reason, notes? }`.
+      `CancellationReason = "CASHIER_ERROR" | "CUSTOMER_REGRET" |
       "WRONG_PRODUCT" | "OTHER"`. Blocking while submitting; state resets on reopen via
       `requestAnimationFrame`. Uses `mapSalesError`.
     - **Ticket adapter:** `src/features/sales/utils/ticketAdapter.ts` exports
