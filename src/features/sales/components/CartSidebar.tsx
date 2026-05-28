@@ -60,11 +60,17 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
   const selectedCustomer =
     customers.find((c) => c.id === selectedCustomerId) ?? null;
 
-  const handleDecrement = (productId: string, quantity: number) => {
-    if (quantity <= 1) {
-      removeItem(productId);
+  const handleDecrement = (item: CartItem) => {
+    if (item.unitOfMeasure === "KILO") {
+      // Flat −1 would corrupt a weighed fraction (e.g. 0.750 kg). Reuse the
+      // QuantityModal flow so the cashier types the corrected weight.
+      setEditingItem(item);
+      return;
+    }
+    if (item.quantity <= 1) {
+      removeItem(item.productId);
     } else {
-      updateItemQuantity(productId, quantity - 1);
+      updateItemQuantity(item.productId, item.quantity - 1);
     }
   };
 
@@ -212,9 +218,7 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() =>
-                        handleDecrement(item.productId, item.quantity)
-                      }
+                      onClick={() => handleDecrement(item)}
                       aria-label={`Disminuir cantidad de ${item.name}`}
                       className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                     >
@@ -225,7 +229,7 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
                       onClick={() => setEditingItem(item)}
                       aria-label={`Editar cantidad de ${item.name}`}
                       title="Clic para editar cantidad"
-                      className="min-w-[3.5rem] rounded-lg px-2 py-1 text-center text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                      className="min-w-14 rounded-lg px-2 py-1 text-center text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                     >
                       {formatQty(item)}
                     </button>

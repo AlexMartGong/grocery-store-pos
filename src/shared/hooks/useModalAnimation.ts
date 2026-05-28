@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { lockScroll, unlockScroll } from "../utils/scrollLock";
 
 interface UseModalAnimationOptions {
   exitDuration?: number;
@@ -39,11 +40,10 @@ export const useModalAnimation = (
       if (e.key === "Escape" && closeOnEscape) onClose?.();
     };
     document.addEventListener("keydown", onKey);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    lockScroll();
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previousOverflow;
+      unlockScroll();
     };
   }, [render, closeOnEscape, onClose]);
 
