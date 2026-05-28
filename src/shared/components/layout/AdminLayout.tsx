@@ -9,7 +9,7 @@ export const AdminLayout = () => {
   const { isMobileMenuOpen, setIsMobileMenuOpen, closeMenu } = useMobileMenu();
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-dvh w-full overflow-hidden bg-slate-50">
       {isMobileMenuOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
@@ -19,7 +19,7 @@ export const AdminLayout = () => {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col overflow-y-auto bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -38,8 +38,8 @@ export const AdminLayout = () => {
         </nav>
       </aside>
 
-      <div className="flex flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between md:justify-end gap-4 border-b bg-white px-6">
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <header className="flex h-16 shrink-0 items-center justify-between md:justify-end gap-4 border-b bg-white px-6">
           <button
             onClick={() => setIsMobileMenuOpen((prev) => !prev)}
             aria-label="Toggle navigation menu"
@@ -59,7 +59,7 @@ export const AdminLayout = () => {
             </button>
           </div>
         </header>
-        <main className="flex-1 bg-slate-50 p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto bg-slate-50 p-6 md:p-8">
           <Outlet />
         </main>
       </div>
