@@ -233,7 +233,11 @@ export const CustomersList = () => {
                   </div>
 
                   {confirmDeleteId === c.id ? (
-                    <div className="space-y-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                    <div
+                      role="alertdialog"
+                      aria-label="Confirmar desactivación de cliente"
+                      className="space-y-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2"
+                    >
                       <p className="text-sm text-rose-700">
                         ¿Desactivar &ldquo;{c.full_name}&rdquo;?
                       </p>
@@ -409,7 +413,11 @@ export const CustomersList = () => {
                       {confirmDeleteId === c.id && (
                         <tr className="bg-rose-50">
                           <td colSpan={6} className="px-4 py-3">
-                            <div className="flex items-center gap-3">
+                            <div
+                              role="alertdialog"
+                              aria-label="Confirmar desactivación de cliente"
+                              className="flex items-center gap-3"
+                            >
                               <p className="flex-1 text-sm text-rose-700">
                                 ¿Desactivar cliente &ldquo;{c.full_name}&rdquo;?
                               </p>

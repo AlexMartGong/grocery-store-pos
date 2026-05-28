@@ -161,7 +161,11 @@ export const StoresList = () => {
                 </div>
 
                 {confirmDeleteId === s.id ? (
-                  <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                  <div
+                    role="alertdialog"
+                    aria-label="Confirmar cancelación de tienda"
+                    className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2"
+                  >
                     <p className="flex-1 text-sm text-rose-700">Cancel this store?</p>
                     <button
                       type="button"
@@ -305,7 +309,11 @@ export const StoresList = () => {
                     {confirmDeleteId === s.id && (
                       <tr key={`confirm-${s.id}`} className="bg-rose-50">
                         <td colSpan={7} className="px-4 py-3">
-                          <div className="flex items-center gap-3">
+                          <div
+                            role="alertdialog"
+                            aria-label="Confirmar cancelación de tienda"
+                            className="flex items-center gap-3"
+                          >
                             <p className="flex-1 text-sm text-rose-700">
                               Cancel store &ldquo;{s.name}&rdquo;? This sets status to CANCELED.
                             </p>

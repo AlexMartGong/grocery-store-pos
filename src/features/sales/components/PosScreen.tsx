@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, ShoppingBag, XCircle } from "lucide-react";
 import { ProductGrid } from "./ProductGrid";
 import { CartSidebar } from "./CartSidebar";
@@ -11,9 +11,16 @@ import type { CartItem, SaleResponse } from "../types";
 import type { ProductResponse } from "../../products/types";
 import { searchByBarcode } from "../../products/api/productsApi";
 import { useBarcodeScanner } from "../../../shared/hooks/useBarcodeScanner";
-import { CameraScannerModal } from "../../../shared/components/scanner/CameraScannerModal";
 import { playBeep, playErrorBeep, vibrate } from "../../../shared/utils/feedback";
 import { useAuthStore } from "../../auth/store/authStore";
+
+// Lazily loaded so the heavy `html5-qrcode` library only downloads the first
+// time the cashier taps the camera button — not on every POS page load.
+const CameraScannerModal = lazy(() =>
+  import("../../../shared/components/scanner/CameraScannerModal").then((m) => ({
+    default: m.CameraScannerModal,
+  })),
+);
 
 export const PosScreen = () => {
   const itemCount = useCartItemCount();
@@ -29,6 +36,9 @@ export const PosScreen = () => {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [kiloProduct, setKiloProduct] = useState<ProductResponse | null>(null);
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
+  // Stays true once the camera has been opened so the lazy modal remains mounted
+  // and keeps its entrance/exit animation on subsequent opens.
+  const [scannerMounted, setScannerMounted] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [printToast, setPrintToast] = useState<
     { kind: "success" | "error"; message: string } | null
@@ -105,6 +115,11 @@ export const PosScreen = () => {
     setCheckoutOpen(true);
   };
 
+  const openCameraScanner = () => {
+    setScannerMounted(true);
+    setCameraScannerOpen(true);
+  };
+
   const handleSaleSuccess = (sale: SaleResponse, tenderedAmount: number, cartItems: CartItem[]) => {
     setLastSale(sale);
     setLastTenderedAmount(tenderedAmount);
@@ -132,7 +147,7 @@ export const PosScreen = () => {
       <section className="relative flex-1 overflow-hidden">
         <ProductGrid
           onProductClick={handleProductClick}
-          onOpenCameraScanner={() => setCameraScannerOpen(true)}
+          onOpenCameraScanner={openCameraScanner}
         />
       </section>
 
@@ -223,14 +238,18 @@ export const PosScreen = () => {
         productName={kiloProduct?.name ?? ""}
       />
 
-      <CameraScannerModal
-        open={cameraScannerOpen}
-        onClose={() => setCameraScannerOpen(false)}
-        onScan={(code) => {
-          void handleScan(code);
-        }}
-        title="Escanear producto"
-      />
+      {scannerMounted && (
+        <Suspense fallback={null}>
+          <CameraScannerModal
+            open={cameraScannerOpen}
+            onClose={() => setCameraScannerOpen(false)}
+            onScan={(code) => {
+              void handleScan(code);
+            }}
+            title="Escanear producto"
+          />
+        </Suspense>
+      )}
 
       {scanError && (
         <div

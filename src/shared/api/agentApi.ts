@@ -90,7 +90,9 @@ export const pingAgent = async (urlOverride?: string): Promise<boolean> => {
   }
 };
 
-export const readScale = async (): Promise<ScaleReadingDTO> => {
+export const readScale = async (
+  signal?: AbortSignal,
+): Promise<ScaleReadingDTO> => {
   const baseUrl = useSettingsStore.getState().localAgentUrl;
   if (!baseUrl) {
     return { weight: 0, isStable: false, error: "Agente no configurado" };
@@ -98,7 +100,7 @@ export const readScale = async (): Promise<ScaleReadingDTO> => {
   try {
     const res = await agentClient.get<AgentScaleResponse>(
       `${baseUrl}/api/scale/weight`,
-      { timeout: 1500 },
+      { timeout: 1500, signal },
     );
     const data = res.data;
     return {

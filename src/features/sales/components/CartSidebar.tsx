@@ -220,7 +220,7 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
                       type="button"
                       onClick={() => handleDecrement(item)}
                       aria-label={`Disminuir cantidad de ${item.name}`}
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                      className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                     >
                       <Minus aria-hidden className="h-4 w-4" />
                     </button>
@@ -229,7 +229,7 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
                       onClick={() => setEditingItem(item)}
                       aria-label={`Editar cantidad de ${item.name}`}
                       title="Clic para editar cantidad"
-                      className="min-w-14 rounded-lg px-2 py-1 text-center text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                      className="min-w-14 rounded-lg px-2 py-2.5 text-center text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                     >
                       {formatQty(item)}
                     </button>
@@ -239,7 +239,7 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
                         updateItemQuantity(item.productId, item.quantity + 1)
                       }
                       aria-label={`Aumentar cantidad de ${item.name}`}
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                      className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                     >
                       <Plus aria-hidden className="h-4 w-4" />
                     </button>
@@ -248,7 +248,7 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
                     type="button"
                     onClick={() => removeItem(item.productId)}
                     aria-label={`Eliminar ${item.name} del carrito`}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-rose-500 transition-colors hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+                    className="flex h-11 w-11 items-center justify-center rounded-full text-rose-500 transition-colors hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
                   >
                     <Trash2 aria-hidden className="h-4 w-4" />
                   </button>

@@ -430,6 +430,16 @@ Subsequent features MUST reuse these primitives:
   compensate with `document.body.style.paddingRight`/`marginRight` — gutter handles it. Reference:
   `src/shared/hooks/useModalAnimation.ts` sets only `overflow: hidden`.
 
+- **Route-level code-splitting (initial-bundle / TTI):** `AppRouter.tsx` lazy-loads admin pages and
+  secondary store pages via `React.lazy` + a `suspense()` helper that wraps each route `element` in
+  `<Suspense fallback={<RouteFallback />}>` (centered `Loader2` spinner). Lazy components are named
+  exports, so each is `lazy(() => import("…").then((m) => ({ default: m.X })))`. Kept **eager** for
+  first paint / synchronous auth: both logins, the three guards, `AdminLayout`, `StoreLayout`, and
+  `PosScreen` (the cashier's landing). Heaviest deferral: `PosScreen` lazy-loads `CameraScannerModal`
+  (pulls in ~370 kB `html5-qrcode`) behind a `scannerMounted` latch — the modal mounts only after the
+  first camera tap and **stays mounted** thereafter so its entrance/exit animation survives later opens.
+  New routes/feature pages follow this: lazy unless needed for first paint.
+
 - **POS full-bleed layout escape:** `StoreLayout` `<main>` is `flex-1 bg-slate-50 p-6 md:p-8`. POS catalog
   + cart needs full viewport, so `PosScreen.tsx` root cancels padding and pins height:
   `<div className="-m-6 md:-m-8 h-[calc(100vh-4rem)] flex flex-col md:flex-row bg-slate-50">`. The `4rem`
@@ -635,19 +645,24 @@ Subsequent features MUST reuse these primitives:
 
 - **Physical scale integration (báscula):** The print agent also exposes the serial scale over HTTP
   (`GET /api/scale/weight`, port 8081, permissive CORS). Frontend infra lives in `src/shared/`.
-    - **`readScale()` (`src/shared/api/agentApi.ts`):** GET to `${localAgentUrl}/api/scale/weight` with a
-      strict per-request 1500 ms timeout (overrides the 8 s `agentClient` default). Returns
+    - **`readScale(signal?)` (`src/shared/api/agentApi.ts`):** GET to `${localAgentUrl}/api/scale/weight`
+      with a strict per-request 1500 ms timeout (overrides the 8 s `agentClient` default) and an optional
+      `AbortSignal` (forwarded to axios so `useScale`'s cleanup can cancel an in-flight read). Returns
       `ScaleReadingDTO { weight: number; isStable: boolean; error?: string | null }`. Never throws —
       same "safe object always" contract as `pingAgent` / `fetchStationsFromCloud`: on any failure
       returns `{ weight: 0, isStable: false, error: "Báscula desconectada" }`, on missing agent URL
       `error: "Agente no configurado"`. The agent emits `stable` (no `is` prefix) — `readScale` maps
       `stable → isStable`. Always use this helper — never call the scale endpoint ad-hoc.
-    - **`useScale(enabled)` hook (`src/shared/hooks/useScale.ts`):** Polls `readScale` every 300 ms via
-      `setInterval`, strictly only while `enabled === true`. Returns `{ reading, isReading }`; `reading`
-      is always defined (initialized to a zero reading) and resets to that initial value when `enabled`
-      turns false (inside `requestAnimationFrame` — lint-safe). An `inFlightRef` skips overlapping
-      requests (1500 ms timeout > 300 ms interval). `clearInterval` on cleanup. setState happens only
-      inside the async `tick` (`useCallback`) — satisfies `react-hooks/set-state-in-effect`.
+    - **`useScale(enabled)` hook (`src/shared/hooks/useScale.ts`):** Self-scheduling `setTimeout` loop
+      (not `setInterval`) calling `readScale`, strictly only while `enabled === true`. Returns
+      `{ reading }`; `reading` is always defined (initialized to a zero reading) and resets to that
+      initial value when `enabled` turns false (inside `requestAnimationFrame` — lint-safe).
+      **Exponential backoff:** each tick reschedules at `Math.min(300 * 2 ** consecutiveErrors, 3000)` ms
+      — a `reading.error` increments the effect-local `consecutiveErrors`, a clean reading resets it to 0
+      (back to 300 ms), so a dead agent stops hammering the LAN at 300 ms. An `AbortController` created
+      per effect run is passed to `readScale(signal)` and `abort()`-ed on cleanup alongside
+      `clearTimeout`. setState happens only inside the async `tick` and is change-detected (steady weight
+      = no re-render) — satisfies `react-hooks/set-state-in-effect`.
     - **`QuantityModal` scale UI (`src/features/sales/components/QuantityModal.tsx`):** For KILO
       products only, calls `useScale(open && unitOfMeasure === "KILO")` so polling runs only while the
       modal is open for a weighed product. Renders a "Báscula en vivo" card above the manual input:
