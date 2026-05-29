@@ -198,7 +198,12 @@ Subsequent features MUST reuse these primitives:
   `border-rose-500 focus:border-rose-500 focus:ring-rose-300/40`. Reference:
   `src/features/admin/components/ProvisionOwnerForm.tsx`.
 - **Token utilities:** `src/features/auth/utils/token.ts` — `decodeToken`, `isExpired`, `toAuthUser`. Reuse;
-  do not call `jwtDecode` directly elsewhere.
+  do not call `jwtDecode` directly elsewhere. `decodeToken` is hardened against tampering: it returns
+  `null` not only when `jwtDecode` throws (invalid base64) but also when the payload fails shape
+  validation (`exp` not a `number`, or `role` not one of `OWNER`/`CASHIER`/`SUPER_ADMIN`). This closes
+  the hole where a `{}`-payload token makes `isExpired` compute `NaN < now` → "never expires" with an
+  `undefined` role. `setToken` and `authStore`'s `onRehydrateStorage` rely on this `null` to destroy a
+  manipulated session — never weaken `decodeToken` to return a partial payload.
 - **Route guards:** Three guards in `src/routes/guards/`:
     - `AdminGuard` — `SUPER_ADMIN` only; unauthenticated → `/admin/login`, wrong role → `/login`.
     - `StoreGuard` — `OWNER` or `CASHIER`; else → `/login`. Accepts optional `children` prop (mirrors `AdminGuard`).
@@ -624,9 +629,14 @@ Subsequent features MUST reuse these primitives:
 - **Agent printer settings — multi-station (`src/features/settings/`):** A store has multiple checkout
   stations (`StoreStation`); each station self-reports its own LAN agent URL to the cloud.
     - **`useSettingsStore` (`src/features/settings/store/settingsStore.ts`):** Persisted Zustand store
-      (`"grocery-pos-settings"` key, `partialize` → `localAgentUrl` only). Exports only `setLocalAgentUrl`
-      (normalizes trailing slashes). Default URL: `http://192.168.68.66:8081`. No `autoDiscoverAgent` —
-      cloud-sync logic lives in `AgentSettingsModal`, keyed on the selected station.
+      (`"grocery-pos-settings"` key, `partialize` → `localAgentUrl` only). Exports only `setLocalAgentUrl`,
+      which normalizes trailing slashes and **validates against SSRF (V-04)** with the module-level
+      `PRIVATE_AGENT_URL` regex: the value must be strict `http://` (rejects `https`/`javascript`) with a
+      loopback or RFC1918 host (`localhost`, `127.0.0.1`, `10.x`, `192.168.x`, `172.16–31.x`) and optional
+      port. Invalid input is discarded (previous URL kept) with a `console.error`; the action returns
+      `boolean` (`false` = rejected). Empty string falls back to the default. Default URL:
+      `http://192.168.68.66:8081`. No `autoDiscoverAgent` — cloud-sync logic lives in `AgentSettingsModal`,
+      keyed on the selected station. Never relax `PRIVATE_AGENT_URL` to allow public hosts or other schemes.
     - **`AgentSettingsModal`** opens from `StoreLayout` sidebar (`Printer` icon). Owns local `url` state,
       `TestState` (`idle | testing | ok | fail | discovered`), `stations: StoreStationResponse[]`, and
       `selectedStationId`. A `useEffect` on `open` calls `fetchStationsFromCloud()` and pre-selects the
@@ -635,7 +645,8 @@ Subsequent features MUST reuse these primitives:
       selected station: valid `agentUrl` → `setLocalAgentUrl` + `toast.success("IP sincronizada con la
       caja")`; null `agentUrl` → `toast.error` (Agente PC apagado). The "Configuración del Agente Local
       (PC)" block shows the `selectedStationId` UUID (NOT `storeId`) — copy it into `station.id` of the
-      PC `config.properties`.
+      PC `config.properties`. `handleSubmit` checks the `setLocalAgentUrl` boolean: a rejected (non-private)
+      URL keeps the modal open and fires `toast.error` instead of calling `onClose()`.
     - **`agentApi.ts` (`src/shared/api/agentApi.ts`):** `printTicket(dto)` (POST, 8 s timeout),
       `pingAgent(url?)` (OPTIONS, 3 s timeout), `fetchStationsFromCloud()` (authenticated
       `GET /stores/me/stations` via `apiClient`, returns `StoreStationResponse[]` — `{ id, name,
