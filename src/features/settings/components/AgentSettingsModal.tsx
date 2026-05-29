@@ -94,7 +94,13 @@ export const AgentSettingsModal = ({ open, onClose }: AgentSettingsModalProps) =
 
   const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLocalAgentUrl(url);
+    const ok = setLocalAgentUrl(url);
+    if (!ok) {
+      toast.error(
+        "URL inválida. Usa http:// con una IP local (ej. http://192.168.1.10:8081).",
+      );
+      return;
+    }
     onClose();
   };
 
