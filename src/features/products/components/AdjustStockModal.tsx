@@ -1,6 +1,6 @@
 import axios from "axios";
 import { useEffect, useState, type SyntheticEvent } from "react";
-import { AlertCircle, PackagePlus } from "lucide-react";
+import { AlertCircle, ArrowDownToLine, ArrowUpFromLine, PackagePlus } from "lucide-react";
 import { Modal } from "../../../shared/components/ui/Modal";
 import { adjustStock } from "../../inventory/api/inventoryApi";
 import { mapInventoryError } from "../../inventory/utils/errorMessages";
@@ -31,6 +31,7 @@ const inputClass = (hasError: boolean) =>
 export const AdjustStockModal = ({ isOpen, product, onClose, onSaved }: AdjustStockModalProps) => {
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState<InventoryReason>("RESTOCK");
+  const [adjustmentType, setAdjustmentType] = useState<"IN" | "OUT">("IN");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,10 +41,17 @@ export const AdjustStockModal = ({ isOpen, product, onClose, onSaved }: AdjustSt
     if (!product) return;
     setQuantity("");
     setReason("RESTOCK");
+    setAdjustmentType("IN");
     setNotes("");
     setError(null);
     setFieldErrors({});
   }, [product]);
+
+  const isOutflow =
+    reason === "LOSS" || (reason === "ADJUSTMENT" && adjustmentType === "OUT");
+  const helpText = isOutflow
+    ? "Se restará del stock actual."
+    : "Se sumará al stock actual.";
 
   const onSubmit = async (e: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     e.preventDefault();
@@ -51,10 +59,13 @@ export const AdjustStockModal = ({ isOpen, product, onClose, onSaved }: AdjustSt
     setSubmitting(true);
     setError(null);
     setFieldErrors({});
+    const magnitude = quantity.trim().replace(/^[+-]/, "");
+    const signedQuantity =
+      isOutflow && magnitude !== "" ? `-${magnitude}` : magnitude;
     try {
       await adjustStock({
         product_id: product.id,
-        quantity,
+        quantity: signedQuantity,
         reason,
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       });
@@ -100,7 +111,8 @@ export const AdjustStockModal = ({ isOpen, product, onClose, onSaved }: AdjustSt
             id="adj-quantity"
             name="quantity"
             type="number"
-            step="0.001"
+            step="1"
+            min="0"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
             required
@@ -110,9 +122,7 @@ export const AdjustStockModal = ({ isOpen, product, onClose, onSaved }: AdjustSt
           {fieldErrors.quantity ? (
             <p className="mt-1 text-sm text-rose-500">{fieldErrors.quantity}</p>
           ) : (
-            <p className="text-xs text-slate-500">
-              Usa valor negativo para mermas o ajustes a la baja.
-            </p>
+            <p className="text-xs text-slate-500">{helpText}</p>
           )}
         </div>
 
@@ -136,6 +146,40 @@ export const AdjustStockModal = ({ isOpen, product, onClose, onSaved }: AdjustSt
           </select>
           {fieldErrors.reason && (
             <p className="mt-1 text-sm text-rose-500">{fieldErrors.reason}</p>
+          )}
+
+          {reason === "ADJUSTMENT" && (
+            <div
+              role="group"
+              aria-label="Dirección del ajuste"
+              className="mt-2 grid grid-cols-2 gap-3"
+            >
+              {(
+                [
+                  { value: "IN", label: "Entrada", icon: ArrowDownToLine },
+                  { value: "OUT", label: "Salida", icon: ArrowUpFromLine },
+                ] as const
+              ).map((opt) => {
+                const active = adjustmentType === opt.value;
+                const Icon = opt.icon;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setAdjustmentType(opt.value)}
+                    aria-pressed={active}
+                    className={`inline-flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${
+                      active
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Icon aria-hidden className="h-4 w-4" />
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
 
