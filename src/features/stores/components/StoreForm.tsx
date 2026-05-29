@@ -1,17 +1,28 @@
+import axios from "axios";
 import { useEffect, useState, type SyntheticEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AlertCircle, ArrowLeft, Save, Store as StoreIcon } from "lucide-react";
 import { createStore, getStoreById, updateStore } from "../api/storesApi";
 import { mapStoresError } from "../utils/errorMessages";
-import type { StoreStatus } from "../types";
+import type { AdminNotificationChannel, StoreStatus } from "../types";
+import type { ApiErrorResponse } from "../../auth/types";
 
 const CODE_PATTERN = "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$";
+
+const inputClass = (hasError: boolean) =>
+  `w-full rounded-lg border bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus-visible:outline-none focus-visible:ring-2 ${
+    hasError
+      ? "border-rose-500 focus:border-rose-500 focus:ring-rose-300/40"
+      : "border-slate-300 focus:border-slate-700 focus:ring-slate-500/30"
+  }`;
 
 interface FormState {
   code: string;
   name: string;
   ownerName: string;
   whatsapp: string;
+  telegramChatId: string;
+  preferredAdminChannel: AdminNotificationChannel;
   address: string;
   status: StoreStatus;
 }
@@ -21,6 +32,8 @@ const INITIAL: FormState = {
   name: "",
   ownerName: "",
   whatsapp: "",
+  telegramChatId: "",
+  preferredAdminChannel: "WHATSAPP",
   address: "",
   status: "ACTIVE",
 };
@@ -34,6 +47,7 @@ export const StoreForm = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!id) return;
@@ -46,6 +60,8 @@ export const StoreForm = () => {
           name: s.name,
           ownerName: s.ownerName ?? "",
           whatsapp: s.whatsapp ?? "",
+          telegramChatId: s.telegramChatId ?? "",
+          preferredAdminChannel: s.preferredAdminChannel ?? "WHATSAPP",
           address: s.address ?? "",
           status: s.status,
         }),
@@ -61,12 +77,15 @@ export const StoreForm = () => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setFieldErrors({});
     try {
       if (isEdit && id) {
         await updateStore(id, {
           name: form.name,
           ownerName: form.ownerName || undefined,
           whatsapp: form.whatsapp || undefined,
+          telegramChatId: form.telegramChatId || undefined,
+          preferredAdminChannel: form.preferredAdminChannel,
           address: form.address || undefined,
           status: form.status,
         });
@@ -76,11 +95,16 @@ export const StoreForm = () => {
           name: form.name,
           ownerName: form.ownerName || undefined,
           whatsapp: form.whatsapp || undefined,
+          telegramChatId: form.telegramChatId || undefined,
+          preferredAdminChannel: form.preferredAdminChannel,
           address: form.address || undefined,
         });
       }
       navigate("/admin/stores");
     } catch (err) {
+      if (axios.isAxiosError<ApiErrorResponse>(err) && err.response?.data?.fields) {
+        setFieldErrors(err.response.data.fields);
+      }
       setError(mapStoresError(err));
     } finally {
       setSubmitting(false);
@@ -189,6 +213,65 @@ export const StoreForm = () => {
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/30"
                 />
               </div>
+
+              <fieldset className="space-y-4 border-t border-slate-200 pt-4">
+                <legend className="text-sm font-semibold text-slate-900">
+                  Notificaciones del Sistema
+                </legend>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="preferredAdminChannel"
+                    className="block text-sm font-medium text-slate-700"
+                  >
+                    Canal principal de notificaciones
+                  </label>
+                  <select
+                    id="preferredAdminChannel"
+                    name="preferredAdminChannel"
+                    value={form.preferredAdminChannel}
+                    onChange={(e) =>
+                      set("preferredAdminChannel", e.target.value as AdminNotificationChannel)
+                    }
+                    aria-label="Canal principal de notificaciones"
+                    className={inputClass(Boolean(fieldErrors.preferredAdminChannel))}
+                  >
+                    <option value="WHATSAPP">WHATSAPP</option>
+                    <option value="TELEGRAM">TELEGRAM</option>
+                  </select>
+                  {fieldErrors.preferredAdminChannel && (
+                    <p className="text-rose-500 text-sm mt-1">
+                      {fieldErrors.preferredAdminChannel}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="telegramChatId"
+                    className="block text-sm font-medium text-slate-700"
+                  >
+                    Telegram chat ID
+                  </label>
+                  <input
+                    id="telegramChatId"
+                    name="telegramChatId"
+                    type="text"
+                    value={form.telegramChatId}
+                    onChange={(e) => set("telegramChatId", e.target.value)}
+                    maxLength={50}
+                    aria-label="Telegram chat ID"
+                    className={inputClass(Boolean(fieldErrors.telegramChatId))}
+                  />
+                  {fieldErrors.telegramChatId ? (
+                    <p className="text-rose-500 text-sm mt-1">{fieldErrors.telegramChatId}</p>
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      Requerido solo cuando el canal es TELEGRAM.
+                    </p>
+                  )}
+                </div>
+              </fieldset>
 
               {isEdit && (
                 <div className="space-y-1.5">
