@@ -226,15 +226,15 @@ Subsequent features MUST reuse these primitives:
         - `/pos/sales` — PosScreen (cash register UI: catalog + cart + checkout)
         - `/pos/sales-history` — SalesList (OWNER + CASHIER; paginated history, view + reprint)
         - `/pos/products` — ProductsList (OWNER + CASHIER read; OWNER-only writes nested under OwnerGuard)
-        - `/pos/customers` — CustomersList (OWNER + CASHIER read/write)
-        - `/pos/customers/new` — CustomerForm (create)
-        - `/pos/customers/:id/edit` — CustomerForm (edit)
+        - `/pos/customers` — CustomersList (OWNER + CASHIER read-only; OWNER-only writes nested under OwnerGuard)
         - OwnerGuard (layout route, OWNER only)
             - `/pos/users` — UsersList
             - `/pos/users/new` — UserForm (create)
             - `/pos/users/:id/edit` — UserForm (edit)
             - `/pos/products/new` — ProductForm (create)
             - `/pos/products/:id/edit` — ProductForm (edit)
+            - `/pos/customers/new` — CustomerForm (create, OWNER only)
+            - `/pos/customers/:id/edit` — CustomerForm (edit, OWNER only)
     - `/` → redirect `/login` | `*` → redirect `/login`
 - **Feature folder layout:** `src/features/<domain>/{api,components,hooks,store,types,utils}`. Cross-feature
   deps go through `src/shared/`.

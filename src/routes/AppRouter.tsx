@@ -102,8 +102,6 @@ const router = createBrowserRouter([
       { path: "sales-history", element: suspense(<SalesList />) },
       { path: "products", element: suspense(<ProductsList />) },
       { path: "customers", element: suspense(<CustomersList />) },
-      { path: "customers/new", element: suspense(<CustomerForm />) },
-      { path: "customers/:id/edit", element: suspense(<CustomerForm />) },
       {
         element: <OwnerGuard />,
         children: [
@@ -112,6 +110,8 @@ const router = createBrowserRouter([
           { path: "users/:id/edit", element: suspense(<UserForm />) },
           { path: "products/new", element: suspense(<ProductForm />) },
           { path: "products/:id/edit", element: suspense(<ProductForm />) },
+          { path: "customers/new", element: suspense(<CustomerForm />) },
+          { path: "customers/:id/edit", element: suspense(<CustomerForm />) },
         ],
       },
     ],

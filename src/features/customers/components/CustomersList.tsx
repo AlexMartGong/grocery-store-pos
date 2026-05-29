@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { deleteCustomer, getCustomers } from "../api/customersApi";
 import { mapCustomersError } from "../utils/errorMessages";
+import { useAuthStore } from "../../auth/store/authStore";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
 import { RegisterPaymentModal } from "./RegisterPaymentModal";
 import type { CustomerResponse } from "../types";
@@ -49,6 +50,7 @@ const hasDebt = (c: CustomerResponse): boolean => {
 
 export const CustomersList = () => {
   const navigate = useNavigate();
+  const isOwner = useAuthStore((s) => s.user?.role === "OWNER");
 
   const [customers, setCustomers] = useState<CustomerResponse[]>([]);
   const [page, setPage] = useState(0);
@@ -116,12 +118,14 @@ export const CustomersList = () => {
               </p>
             </div>
           </div>
-          <Link
-            to="/pos/customers/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2.5 font-medium text-white transition hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
-          >
-            <Plus className="h-4 w-4" /> Nuevo cliente
-          </Link>
+          {isOwner && (
+            <Link
+              to="/pos/customers/new"
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2.5 font-medium text-white transition hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+            >
+              <Plus className="h-4 w-4" /> Nuevo cliente
+            </Link>
+          )}
         </header>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -260,13 +264,15 @@ export const CustomersList = () => {
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/pos/customers/${c.id}/edit`)}
-                        className="inline-flex min-w-32 flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                      >
-                        <Pencil className="h-4 w-4" /> Editar
-                      </button>
+                      {isOwner && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/pos/customers/${c.id}/edit`)}
+                          className="inline-flex min-w-32 flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                        >
+                          <Pencil className="h-4 w-4" /> Editar
+                        </button>
+                      )}
                       <Link
                         to={`/pos/sales-history?customerId=${c.id}`}
                         title="Ver historial de compras"
@@ -284,7 +290,7 @@ export const CustomersList = () => {
                           <DollarSign className="h-4 w-4" /> Abonar
                         </button>
                       )}
-                      {c.active && (
+                      {isOwner && c.active && (
                         <button
                           type="button"
                           onClick={() => setConfirmDeleteId(c.id)}
@@ -372,15 +378,17 @@ export const CustomersList = () => {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                navigate(`/pos/customers/${c.id}/edit`)
-                              }
-                              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                            >
-                              <Pencil className="h-3.5 w-3.5" /> Editar
-                            </button>
+                            {isOwner && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(`/pos/customers/${c.id}/edit`)
+                                }
+                                className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                              >
+                                <Pencil className="h-3.5 w-3.5" /> Editar
+                              </button>
+                            )}
                             <Link
                               to={`/pos/sales-history?customerId=${c.id}`}
                               title="Ver historial de compras"
@@ -398,7 +406,7 @@ export const CustomersList = () => {
                                 <DollarSign className="h-3.5 w-3.5" /> Abonar
                               </button>
                             )}
-                            {c.active && (
+                            {isOwner && c.active && (
                               <button
                                 type="button"
                                 onClick={() => setConfirmDeleteId(c.id)}
