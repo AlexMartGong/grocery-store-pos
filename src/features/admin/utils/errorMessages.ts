@@ -44,3 +44,23 @@ export function mapSaasPaymentError(err: unknown): string {
   }
   return GENERIC_ERROR;
 }
+
+// Codes for POST /admin/stores/:storeId/stations — backend has no name-uniqueness
+// constraint, so there is no conflict code to map here.
+export const STORE_STATION_ERROR_MESSAGES: Record<string, string> = {
+  store_not_found: "Store not found.",
+  validation_failed: "Please check the highlighted fields and try again.",
+  forbidden: "You don't have permission for this action.",
+};
+
+export function mapStoreStationError(err: unknown): string {
+  if (axios.isAxiosError<ApiErrorResponse>(err)) {
+    if (!err.response) return NETWORK_ERROR;
+    const code = err.response.data?.error;
+    if (code && STORE_STATION_ERROR_MESSAGES[code]) {
+      return STORE_STATION_ERROR_MESSAGES[code];
+    }
+    if (err.response.data?.message) return err.response.data.message;
+  }
+  return GENERIC_ERROR;
+}

@@ -41,3 +41,9 @@ export interface StoreProfileResponse {
   address: string;
   phone: string;
 }
+
+// POST /admin/stores/:storeId/stations — only `name` (backend @NotBlank @Size(max=100)).
+// Response reuses StoreStationResponse from src/shared/api/agentApi.ts.
+export interface CreateStoreStationRequest {
+  name: string;
+}

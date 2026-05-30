@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AlertCircle, BadgeDollarSign, Pencil, Plus, Search, Store as StoreIcon, Trash2, UserPlus } from "lucide-react";
+import { AlertCircle, BadgeDollarSign, Monitor, Pencil, Plus, Search, Store as StoreIcon, Trash2, UserPlus } from "lucide-react";
 import { deleteStore, getStores } from "../api/storesApi";
 import { mapStoresError } from "../utils/errorMessages";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
 import { RegisterSaasPaymentModal } from "../../admin/components/RegisterSaasPaymentModal";
+import { CreateStationModal } from "../../admin/components/CreateStationModal";
 import type { StoreResponse, StoreStatus } from "../types";
 
 const PAGE_SIZE = 10;
@@ -28,6 +29,7 @@ export const StoresList = () => {
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [paymentStore, setPaymentStore] = useState<StoreResponse | null>(null);
+  const [stationStore, setStationStore] = useState<StoreResponse | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -221,6 +223,14 @@ export const StoresList = () => {
                     </button>
                     <button
                       type="button"
+                      onClick={() => setStationStore(s)}
+                      aria-label={`Nueva caja para ${s.name}`}
+                      className="flex-1 min-w-32 inline-flex items-center justify-center gap-1.5 rounded-lg border border-sky-200 bg-white px-3 py-2.5 text-sm text-sky-700 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                    >
+                      <Monitor className="w-4 h-4" /> Nueva caja
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setConfirmDeleteId(s.id)}
                       className="flex-1 min-w-32 inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2.5 text-sm text-rose-700 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                     >
@@ -317,6 +327,15 @@ export const StoresList = () => {
                           </button>
                           <button
                             type="button"
+                            onClick={() => setStationStore(s)}
+                            title="Nueva estación de impresión"
+                            aria-label={`Nueva caja para ${s.name}`}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-sky-200 bg-white px-3 py-2 text-sm text-sky-700 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                          >
+                            <Monitor className="w-3.5 h-3.5" /> Caja
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => setConfirmDeleteId(s.id)}
                             className="inline-flex items-center gap-1.5 rounded-md border border-rose-200 bg-white px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                           >
@@ -392,6 +411,13 @@ export const StoresList = () => {
         store={paymentStore}
         onClose={() => setPaymentStore(null)}
         onSuccess={() => void load()}
+      />
+
+      <CreateStationModal
+        open={stationStore != null}
+        store={stationStore}
+        onClose={() => setStationStore(null)}
+        onSuccess={() => {}}
       />
     </div>
   );
