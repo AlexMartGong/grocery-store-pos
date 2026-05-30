@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AlertCircle, Pencil, Plus, Search, Store as StoreIcon, Trash2, UserPlus } from "lucide-react";
+import { AlertCircle, BadgeDollarSign, Pencil, Plus, Search, Store as StoreIcon, Trash2, UserPlus } from "lucide-react";
 import { deleteStore, getStores } from "../api/storesApi";
 import { mapStoresError } from "../utils/errorMessages";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
+import { RegisterSaasPaymentModal } from "../../admin/components/RegisterSaasPaymentModal";
 import type { StoreResponse, StoreStatus } from "../types";
 
 const PAGE_SIZE = 10;
@@ -26,6 +27,7 @@ export const StoresList = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [paymentStore, setPaymentStore] = useState<StoreResponse | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -211,6 +213,14 @@ export const StoresList = () => {
                     </button>
                     <button
                       type="button"
+                      onClick={() => setPaymentStore(s)}
+                      aria-label={`Registrar pago para ${s.name}`}
+                      className="flex-1 min-w-32 inline-flex items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2.5 text-sm text-indigo-700 hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                    >
+                      <BadgeDollarSign className="w-4 h-4" /> Registrar pago
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setConfirmDeleteId(s.id)}
                       className="flex-1 min-w-32 inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2.5 text-sm text-rose-700 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                     >
@@ -298,6 +308,15 @@ export const StoresList = () => {
                           </button>
                           <button
                             type="button"
+                            onClick={() => setPaymentStore(s)}
+                            title="Registrar pago de suscripción"
+                            aria-label={`Registrar pago para ${s.name}`}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                          >
+                            <BadgeDollarSign className="w-3.5 h-3.5" /> Pago
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => setConfirmDeleteId(s.id)}
                             className="inline-flex items-center gap-1.5 rounded-md border border-rose-200 bg-white px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                           >
@@ -367,6 +386,13 @@ export const StoresList = () => {
           </div>
         </div>
       </div>
+
+      <RegisterSaasPaymentModal
+        open={paymentStore != null}
+        store={paymentStore}
+        onClose={() => setPaymentStore(null)}
+        onSuccess={() => void load()}
+      />
     </div>
   );
 };

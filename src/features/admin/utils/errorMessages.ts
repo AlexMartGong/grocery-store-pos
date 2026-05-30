@@ -24,3 +24,23 @@ export function mapAdminProvisioningError(err: unknown): string {
   }
   return GENERIC_ERROR;
 }
+
+// Codes for POST /admin/stores/:storeId/payments — kept separate from the provisioning
+// map so neither leaks unrelated error codes into the other.
+export const SAAS_PAYMENT_ERROR_MESSAGES: Record<string, string> = {
+  subscription_not_found: "This store has no active subscription to bill.",
+  validation_failed: "Please check the highlighted fields and try again.",
+  forbidden: "You don't have permission for this action.",
+};
+
+export function mapSaasPaymentError(err: unknown): string {
+  if (axios.isAxiosError<ApiErrorResponse>(err)) {
+    if (!err.response) return NETWORK_ERROR;
+    const code = err.response.data?.error;
+    if (code && SAAS_PAYMENT_ERROR_MESSAGES[code]) {
+      return SAAS_PAYMENT_ERROR_MESSAGES[code];
+    }
+    if (err.response.data?.message) return err.response.data.message;
+  }
+  return GENERIC_ERROR;
+}
