@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   DollarSign,
+  History,
   Package,
   PackagePlus,
   Pencil,
@@ -16,6 +17,7 @@ import { useAuthStore } from "../../auth/store/authStore";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
 import { QuickPriceModal } from "./QuickPriceModal";
 import { AdjustStockModal } from "./AdjustStockModal";
+import { ProductKardexModal } from "./ProductKardexModal";
 import type { ProductResponse, UnitOfMeasure } from "../types";
 
 const PAGE_SIZE = 20;
@@ -78,6 +80,7 @@ export const ProductsList = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [priceModalProduct, setPriceModalProduct] = useState<ProductResponse | null>(null);
   const [stockModalProduct, setStockModalProduct] = useState<ProductResponse | null>(null);
+  const [kardexProduct, setKardexProduct] = useState<ProductResponse | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -283,6 +286,13 @@ export const ProductsList = () => {
                       >
                         <PackagePlus className="h-4 w-4" /> Stock
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setKardexProduct(p)}
+                        className="inline-flex flex-1 min-w-32 items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2.5 text-sm text-indigo-700 hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                      >
+                        <History className="h-4 w-4" /> Historial
+                      </button>
                       {isOwner && (
                         <button
                           type="button"
@@ -385,6 +395,13 @@ export const ProductsList = () => {
                             >
                               <PackagePlus className="h-3.5 w-3.5" /> Stock
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setKardexProduct(p)}
+                              className="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                            >
+                              <History className="h-3.5 w-3.5" /> Historial
+                            </button>
                             {isOwner && (
                               <button
                                 type="button"
@@ -467,6 +484,12 @@ export const ProductsList = () => {
         product={stockModalProduct}
         onClose={() => setStockModalProduct(null)}
         onSaved={() => void load()}
+      />
+      <ProductKardexModal
+        isOpen={kardexProduct !== null}
+        productId={kardexProduct?.id ?? null}
+        productName={kardexProduct?.name ?? null}
+        onClose={() => setKardexProduct(null)}
       />
     </div>
   );
