@@ -114,7 +114,7 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
   })();
 
   const handleQuickCash = (value: number) => {
-    setAmountPaid((prev) => ((parseFloat(prev || "0") || 0) + value).toString());
+    setAmountPaid((prev) => ((parseFloat(prev || "0") || 0) + value).toFixed(2));
   };
 
   const handleSelectMethod = (m: MethodConfig) => {
