@@ -1,30 +1,40 @@
-import { LayoutDashboard, PackageX, TrendingUp } from "lucide-react";
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { LayoutDashboard, RefreshCw } from "lucide-react";
+import { getSalesToday } from "../api/dashboardApi";
+import { mapDashboardError } from "../utils/errorMessages";
+import type { SalesTodayResponse } from "../types";
+import { SalesTodayCard } from "./SalesTodayCard";
+import { ProductsToRestockCard } from "./ProductsToRestockCard";
 import { ActivityFeed } from "./ActivityFeed";
 
-// Placeholder metric card — wired to SQL views in a later pass.
-const PlaceholderCard = ({
-  title,
-  value,
-  icon,
-}: {
-  title: string;
-  value: string;
-  icon: ReactNode;
-}) => (
-  <article className="rounded-xl border border-dashed border-slate-200 bg-white p-4 md:p-8">
-    <div className="flex items-center justify-between">
-      <h2 className="text-sm font-medium text-slate-600">{title}</h2>
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-        {icon}
-      </span>
-    </div>
-    <p className="mt-4 text-3xl font-bold text-slate-300">{value}</p>
-    <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">Próximamente</p>
-  </article>
-);
-
 export const DashboardScreen = () => {
+  const [salesData, setSalesData] = useState<SalesTodayResponse | null>(null);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesError, setSalesError] = useState<string | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+
+  const loadSales = useCallback(async () => {
+    setSalesLoading(true);
+    setSalesError(null);
+    try {
+      const data = await getSalesToday();
+      setSalesData(data);
+    } catch (err) {
+      setSalesError(mapDashboardError(err));
+    } finally {
+      setSalesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSales();
+  }, [loadSales]);
+
+  const handleSync = () => {
+    setRefreshNonce((n) => n + 1);
+    void loadSales();
+  };
+
   return (
     <div className="px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -36,20 +46,22 @@ export const DashboardScreen = () => {
             <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
             <p className="text-sm text-slate-500">Resumen de tu negocio</p>
           </div>
+          <button
+            type="button"
+            onClick={handleSync}
+            disabled={salesLoading}
+            aria-label="Sincronizar métricas"
+            className="ml-auto inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={salesLoading ? "animate-spin" : ""} aria-hidden />
+            Sincronizar
+          </button>
         </header>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            <PlaceholderCard
-              title="Ventas del Día"
-              value="—"
-              icon={<TrendingUp size={16} aria-hidden />}
-            />
-            <PlaceholderCard
-              title="Productos por Agotar"
-              value="—"
-              icon={<PackageX size={16} aria-hidden />}
-            />
+            <SalesTodayCard data={salesData} loading={salesLoading} error={salesError} />
+            <ProductsToRestockCard key={refreshNonce} />
           </div>
           <div className="lg:col-span-1">
             <ActivityFeed />
