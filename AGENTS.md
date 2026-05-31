@@ -537,8 +537,11 @@ Subsequent features MUST reuse these primitives:
     - **`StoreLayout` mount fetch:** `useCallback(() => { void fetchCurrentShift(); }, [fetchCurrentShift])`
       + `useEffect(() => { loadShift(); }, [loadShift])` — satisfies `react-hooks/set-state-in-effect`.
     - **Cash API (`src/features/cash/api/cashApi.ts`):** `getCurrentShift()` catches 404 → `null`; other
-      errors propagate. `getShiftHistory({ page, size, sort? })` is a stub for a future OWNER history
-      page — do not wire UI until backend supports it.
+      errors propagate. `getShiftHistory({ page, size, sort? })` (sort default `openedAt,desc` — Spring
+      `Pageable` sorts on the Java entity property, not the snake_case JSON key) backs the OWNER-only
+      shifts history screen `CashShiftsScreen.tsx` at `/pos/shifts` (read-only paginated table, modeled on
+      `SalesList`; reuses `formatMoney`/`formatSaleDate` and the `CloseShiftModal` diff color+icon cue).
+      Route nested under `OwnerGuard`; sidebar link "Cortes" (`Wallet` icon) is `isOwner`-gated.
 
 - **Barcode scanning (dual: HID scanner + camera):** Shared infra in `src/shared/`. Backend exposes
   `GET /products/search?barcode=`; frontend wraps it via `searchByBarcode(barcode)` in

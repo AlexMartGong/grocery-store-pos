@@ -10,6 +10,7 @@ import {
     ShoppingCart,
     UserRound,
     Users,
+    Wallet,
 } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../../features/auth/store/authStore";
@@ -101,6 +102,12 @@ export const StoreLayout = () => {
                         <ListOrdered size={18} />
                         Historial
                     </NavLink>
+                    {isOwner && (
+                        <NavLink to="/pos/shifts" className={navLinkClass} onClick={closeMenu}>
+                            <Wallet size={18} />
+                            Cortes
+                        </NavLink>
+                    )}
                     <NavLink to="/pos/products" className={navLinkClass} onClick={closeMenu}>
                         <Package size={18} />
                         Productos

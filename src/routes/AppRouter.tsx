@@ -73,6 +73,11 @@ const DashboardScreen = lazy(() =>
     default: m.DashboardScreen,
   })),
 );
+const CashShiftsScreen = lazy(() =>
+  import("../features/cash/components/CashShiftsScreen").then((m) => ({
+    default: m.CashShiftsScreen,
+  })),
+);
 
 const RouteFallback = () => (
   <div className="flex min-h-[60vh] items-center justify-center">
@@ -111,6 +116,7 @@ const router = createBrowserRouter([
         element: <OwnerGuard />,
         children: [
           { path: "dashboard", element: suspense(<DashboardScreen />) },
+          { path: "shifts", element: suspense(<CashShiftsScreen />) },
           { path: "users", element: suspense(<UsersList />) },
           { path: "users/new", element: suspense(<UserForm />) },
           { path: "users/:id/edit", element: suspense(<UserForm />) },
