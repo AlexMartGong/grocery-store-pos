@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+    LayoutDashboard,
     ListOrdered,
     LockKeyhole,
     LogOut,
@@ -86,6 +87,12 @@ export const StoreLayout = () => {
                     <span className="text-lg font-bold text-white">{profile?.name || "Cargando..."}</span>
                 </div>
                 <nav aria-label="Main Navigation" className="flex-1 space-y-1 px-3 py-4">
+                    {isOwner && (
+                        <NavLink to="/pos/dashboard" className={navLinkClass} onClick={closeMenu}>
+                            <LayoutDashboard size={18} />
+                            Dashboard
+                        </NavLink>
+                    )}
                     <NavLink to="/pos/sales" className={navLinkClass} onClick={closeMenu}>
                         <ShoppingCart size={18} />
                         POS

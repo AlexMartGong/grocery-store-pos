@@ -68,6 +68,11 @@ const UserForm = lazy(() =>
     default: m.UserForm,
   })),
 );
+const DashboardScreen = lazy(() =>
+  import("../features/dashboard/components/DashboardScreen").then((m) => ({
+    default: m.DashboardScreen,
+  })),
+);
 
 const RouteFallback = () => (
   <div className="flex min-h-[60vh] items-center justify-center">
@@ -105,6 +110,7 @@ const router = createBrowserRouter([
       {
         element: <OwnerGuard />,
         children: [
+          { path: "dashboard", element: suspense(<DashboardScreen />) },
           { path: "users", element: suspense(<UsersList />) },
           { path: "users/new", element: suspense(<UserForm />) },
           { path: "users/:id/edit", element: suspense(<UserForm />) },
