@@ -20,7 +20,7 @@ export interface AgentTicketDTO {
   businessName: string | null;
   businessAddress: string | null;
   businessPhone: string | null;
-  id: number | null;
+  id: string;
   employeeId: number | null;
   employeeName: string | null;
   employeePhone: string | null;

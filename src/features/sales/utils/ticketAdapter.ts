@@ -4,6 +4,7 @@ import type {
 } from "../../../shared/api/agentApi";
 import { useStoreProfileStore } from "../../stores/store/storeProfileStore";
 import type { CartItem, SaleResponse } from "../types";
+import { formatSaleId } from "./format";
 
 const HEX_RE = /^[0-9a-f]+$/i;
 
@@ -95,7 +96,7 @@ export const mapSaleToTicketDTO = (
     businessName: profile?.name ?? null,
     businessAddress: profile?.address ?? null,
     businessPhone: profile?.phone ?? null,
-    id: saleIdLong,
+    id: formatSaleId(sale.id),
     employeeId: uuidToLong(sale.cashier_id),
     employeeName: options.employeeName ?? null,
     employeePhone: null,
