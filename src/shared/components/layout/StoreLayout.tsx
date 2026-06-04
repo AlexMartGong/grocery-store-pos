@@ -96,7 +96,7 @@ export const StoreLayout = () => {
                     )}
                     <NavLink to="/pos/sales" className={navLinkClass} onClick={closeMenu}>
                         <ShoppingCart size={18} />
-                        POS
+                        Venta
                     </NavLink>
                     <NavLink to="/pos/sales-history" className={navLinkClass} onClick={closeMenu}>
                         <ListOrdered size={18} />
