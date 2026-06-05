@@ -8,6 +8,13 @@ interface CameraScannerModalProps {
   onClose: () => void;
   onScan: (code: string) => void;
   title?: string;
+  /**
+   * When true, the modal keeps decoding after each read instead of stopping the
+   * camera and auto-closing. Used by the POS continuous-scan flow; callers must
+   * dedupe rapid same-code fires themselves (the camera fires ~fps/s). Default
+   * false preserves single-shot behavior (e.g. ProductForm barcode capture).
+   */
+  continuous?: boolean;
 }
 
 const SCAN_REGION_ID = "barcode-scanner-region";
@@ -54,6 +61,7 @@ export const CameraScannerModal = ({
   onClose,
   onScan,
   title = "Escanear código",
+  continuous = false,
 }: CameraScannerModalProps) => {
   const titleId = useId();
   const { render, show } = useModalAnimation(open, { onClose });
@@ -102,6 +110,11 @@ export const CameraScannerModal = ({
     };
 
     const onDecoded = (decoded: string) => {
+      if (continuous) {
+        // Keep the camera alive; caller dedupes. No latch, no stop, no close.
+        onScanRef.current(decoded);
+        return;
+      }
       if (handledRef.current) return;
       handledRef.current = true;
       void stop().then(() => {
@@ -168,7 +181,7 @@ export const CameraScannerModal = ({
       void stop();
       scannerRef.current = null;
     };
-  }, [render, retryNonce, currentScannerId]);
+  }, [render, retryNonce, currentScannerId, continuous]);
 
   if (!render) return null;
 

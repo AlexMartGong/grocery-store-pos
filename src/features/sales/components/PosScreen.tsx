@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, ShoppingBag, XCircle } from "lucide-react";
 import { ProductGrid } from "./ProductGrid";
 import { CartSidebar } from "./CartSidebar";
@@ -14,8 +14,6 @@ import { useBarcodeScanner } from "../../../shared/hooks/useBarcodeScanner";
 import { playBeep, playErrorBeep, vibrate } from "../../../shared/utils/feedback";
 import { useAuthStore } from "../../auth/store/authStore";
 
-// Lazily loaded so the heavy `html5-qrcode` library only downloads the first
-// time the cashier taps the camera button — not on every POS page load.
 const CameraScannerModal = lazy(() =>
   import("../../../shared/components/scanner/CameraScannerModal").then((m) => ({
     default: m.CameraScannerModal,
@@ -36,13 +34,12 @@ export const PosScreen = () => {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [kiloProduct, setKiloProduct] = useState<ProductResponse | null>(null);
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
-  // Stays true once the camera has been opened so the lazy modal remains mounted
-  // and keeps its entrance/exit animation on subsequent opens.
   const [scannerMounted, setScannerMounted] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [printToast, setPrintToast] = useState<
     { kind: "success" | "error"; message: string } | null
   >(null);
+  const lastScanRef = useRef<{ code: string; time: number } | null>(null);
 
   useEffect(() => {
     if (!cartDrawerOpen) return;
@@ -109,6 +106,19 @@ export const PosScreen = () => {
   );
 
   useBarcodeScanner({ onScan: handleScan, enabled: !cameraScannerOpen });
+
+  const handleCameraScan = useCallback(
+    (code: string) => {
+      const trimmed = code.trim();
+      if (!trimmed) return;
+      const now = Date.now();
+      const last = lastScanRef.current;
+      if (last && last.code === trimmed && now - last.time < 800) return;
+      lastScanRef.current = { code: trimmed, time: now };
+      void handleScan(trimmed);
+    },
+    [handleScan],
+  );
 
   const openCheckout = () => {
     setCartDrawerOpen(false);
@@ -243,9 +253,8 @@ export const PosScreen = () => {
           <CameraScannerModal
             open={cameraScannerOpen}
             onClose={() => setCameraScannerOpen(false)}
-            onScan={(code) => {
-              void handleScan(code);
-            }}
+            onScan={handleCameraScan}
+            continuous
             title="Escanear producto"
           />
         </Suspense>
