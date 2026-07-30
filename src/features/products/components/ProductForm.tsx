@@ -25,6 +25,7 @@ import { mapProductsError, PRODUCTS_ERROR_MESSAGES } from "../utils/errorMessage
 import { CameraScannerModal } from "../../../shared/components/scanner/CameraScannerModal";
 import { ProductImage } from "../../../shared/components/ui/ProductImage";
 import { playBeep, vibrate } from "../../../shared/utils/feedback";
+import { compressAndConvertToWebP } from "../../../shared/utils/imageOptimizer";
 import type { ApiErrorResponse } from "../../auth/types";
 import type { UnitOfMeasure } from "../types";
 
@@ -51,6 +52,9 @@ const INITIAL: FormState = {
 const BARCODE_PATTERN = "[-A-Za-z0-9._]*";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+// Source cap is generous (decode sanity limit); the backend's 2 MB limit is
+// enforced on the compressed result, not the original.
+const MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
 const inputClass = (hasError: boolean) =>
@@ -154,13 +158,18 @@ export const ProductForm = () => {
       toast.error(PRODUCTS_ERROR_MESSAGES.image_type_not_allowed);
       return;
     }
-    if (file.size > MAX_IMAGE_BYTES) {
+    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
       toast.error(PRODUCTS_ERROR_MESSAGES.image_too_large);
       return;
     }
     setImageBusy(true);
     try {
-      const updated = await uploadProductImage(id, file);
+      const optimized = await compressAndConvertToWebP(file);
+      if (optimized.size > MAX_IMAGE_BYTES) {
+        toast.error(PRODUCTS_ERROR_MESSAGES.image_too_large);
+        return;
+      }
+      const updated = await uploadProductImage(id, optimized);
       setImageUrl(updated.image_url ?? null);
       toast.success("Imagen actualizada");
     } catch (err) {
@@ -490,7 +499,9 @@ export const ProductForm = () => {
                           </button>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500">JPG, PNG o WEBP. Máximo 2 MB.</p>
+                      <p className="text-xs text-slate-500">
+                        JPG, PNG o WEBP. Se optimiza automáticamente (máx. 10 MB).
+                      </p>
                     </div>
                   </div>
                   {confirmDeleteImage && (
