@@ -156,6 +156,7 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 - **POS / cart** — "POS / sales module" + "Sales history list".
 - **Cash shift gate** — "Cash shifts module (`/pos/*` gate)".
 - **Scanner & scale** — "Barcode scanning (dual: HID scanner + camera)", "Physical scale integration".
+- **Product images** — "Product images (upload + thumbnails)".
 - **Notifications, inventory, credit payments** — short sub-sections near the end.
 - **Agent printer settings** — "Agent printer settings — multi-station".
 - **Lint compliance** — "Lint compliance — `react-hooks/set-state-in-effect`" and "`react-hooks/refs`".
@@ -185,6 +186,9 @@ Subsequent features MUST reuse these primitives:
       `notification_not_found`, `forbidden`)
     - `mapInventoryError` — `src/features/inventory/utils/errorMessages.ts` (codes: `product_not_found`,
       `reason_not_allowed`, `validation_failed`, `forbidden`, `conflict`)
+    - `mapProductsError` — `src/features/products/utils/errorMessages.ts` (codes: `product_not_found`,
+      `product_barcode_taken`, `validation_failed`, `forbidden`, `conflict`, `image_type_not_allowed`,
+      `image_too_large`, `file_required`)
 
   Never add unrelated error codes to another feature's map.
 - **Field-level error state:** When endpoint returns `400` `{ error: "validation_failed", fields:
@@ -596,6 +600,30 @@ Subsequent features MUST reuse these primitives:
     - **`data-allow-scanner` opt-in:** Only attach this attribute to inputs that should accept scanner
       bytes (e.g., a catalog search). The hook itself enforces the suppression — do not also add custom
       `onKeyDown` handlers to strip digits; that double-blocks legitimate human typing.
+
+- **Product images (upload + thumbnails):** `ProductResponse.image_url` (`?: string | null`, absolute
+  R2 URL, server-managed — never add it to `Create*`/`Update*` types). API in
+  `src/features/products/api/productsApi.ts`: `uploadProductImage(id, file)` posts multipart `FormData`
+  with key **`file`** (backend `@RequestParam("file")`) and a `Content-Type: multipart/form-data`
+  override (axios injects the boundary); `deleteProductImage(id)`; both return the updated
+  `ProductResponse`. Backend limits are mirrored client-side **before** the request (module constants in
+  `ProductForm.tsx`): MIME `image/jpeg | image/png | image/webp`, max `2 * 1024 * 1024` bytes —
+  violations toast the matching `PRODUCTS_ERROR_MESSAGES` texts (`image_type_not_allowed`,
+  `image_too_large`) without hitting the network.
+    - **`ProductImage` (`src/shared/components/ui/ProductImage.tsx`):** shared `<img loading="lazy">`
+      wrapper with a required `fallback: ReactNode` rendered when `src` is empty **or** `onError` fires.
+      The error flag resets on `src` change inside `requestAnimationFrame` (lint-safe) because upload
+      URLs are cache-busted per re-upload. Always render product images through it — never a bare
+      `<img>`.
+    - **Placements:** `ProductForm` (edit mode only, endpoints are OWNER-only) — hidden
+      `<input type="file" accept="image/jpeg,image/png,image/webp">` triggered by a "Cambiar/Subir
+      imagen" button, inline rose confirm row for "Eliminar imagen" (no `window.confirm`), `sonner`
+      toasts, busy state with `Loader2` spinner. `ProductsList` — `h-10 w-10 rounded-md bg-slate-100
+      object-cover` thumb in a leading table column (`w-14`, `sr-only` "Imagen" header — full-width rows
+      use `colSpan={7}`) and in the mobile card header; fallback = `Package` icon tile (`ThumbFallback`).
+      POS `ProductGrid` card — image replaces the avatar only when `image_url` exists; fallback stays
+      the existing `getInitials` + `pastelColorFromId` circle (`alt=""`, card button owns the
+      `aria-label`).
 
 - **Notifications module (`src/features/notifications/`):** Server-push alerts for OWNER only
   (LOW_STOCK, OUT_OF_STOCK, OVERDUE_CREDIT). `StoreLayout` fetches unread on mount for `OWNER` role.
