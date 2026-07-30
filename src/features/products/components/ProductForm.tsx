@@ -1,15 +1,29 @@
 import axios from "axios";
-import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type SyntheticEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { AlertCircle, ArrowLeft, Camera, Package, Save } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Camera,
+  Image as ImageIcon,
+  ImagePlus,
+  Loader2,
+  Package,
+  Save,
+  Trash2,
+} from "lucide-react";
 import {
   createProduct,
+  deleteProductImage,
   getProductById,
   searchByBarcode,
   updateProduct,
+  uploadProductImage,
 } from "../api/productsApi";
-import { mapProductsError } from "../utils/errorMessages";
+import { mapProductsError, PRODUCTS_ERROR_MESSAGES } from "../utils/errorMessages";
 import { CameraScannerModal } from "../../../shared/components/scanner/CameraScannerModal";
+import { ProductImage } from "../../../shared/components/ui/ProductImage";
 import { playBeep, vibrate } from "../../../shared/utils/feedback";
 import type { ApiErrorResponse } from "../../auth/types";
 import type { UnitOfMeasure } from "../types";
@@ -36,6 +50,9 @@ const INITIAL: FormState = {
 
 const BARCODE_PATTERN = "[-A-Za-z0-9._]*";
 
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
 const inputClass = (hasError: boolean) =>
   `w-full rounded-lg border px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 ${
     hasError
@@ -55,7 +72,11 @@ export const ProductForm = () => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [scannerOpen, setScannerOpen] = useState(false);
   const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [confirmDeleteImage, setConfirmDeleteImage] = useState(false);
   const barcodeRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isEdit || loading) return;
@@ -110,6 +131,7 @@ export const ProductForm = () => {
           minimum_stock: product.minimum_stock,
           unit_of_measure: product.unit_of_measure,
         });
+        setImageUrl(product.image_url ?? null);
       } catch (err) {
         if (!cancelled) setError(mapProductsError(err));
       } finally {
@@ -123,6 +145,45 @@ export const ProductForm = () => {
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  const handleImageSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !id) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast.error(PRODUCTS_ERROR_MESSAGES.image_type_not_allowed);
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error(PRODUCTS_ERROR_MESSAGES.image_too_large);
+      return;
+    }
+    setImageBusy(true);
+    try {
+      const updated = await uploadProductImage(id, file);
+      setImageUrl(updated.image_url ?? null);
+      toast.success("Imagen actualizada");
+    } catch (err) {
+      toast.error(mapProductsError(err));
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  const handleImageDelete = async () => {
+    if (!id) return;
+    setImageBusy(true);
+    try {
+      await deleteProductImage(id);
+      setImageUrl(null);
+      toast.success("Imagen eliminada");
+    } catch (err) {
+      toast.error(mapProductsError(err));
+    } finally {
+      setImageBusy(false);
+      setConfirmDeleteImage(false);
+    }
+  };
 
   const onSubmit = async (e: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     e.preventDefault();
@@ -372,6 +433,91 @@ export const ProductForm = () => {
                   <p className="mt-1 text-sm text-rose-500">{fieldErrors.unit_of_measure}</p>
                 )}
               </div>
+
+              {isEdit && (
+                <div className="space-y-3 border-t border-slate-200 pt-4">
+                  <p className="text-sm font-medium text-slate-700">Imagen del producto</p>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <ProductImage
+                      src={imageUrl}
+                      alt={form.name ? `Imagen de ${form.name}` : "Imagen del producto"}
+                      className="h-24 w-24 rounded-xl border border-slate-200 bg-slate-100 object-cover"
+                      fallback={
+                        <div
+                          aria-hidden="true"
+                          className="flex h-24 w-24 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-400"
+                        >
+                          <ImageIcon className="h-8 w-8" />
+                        </div>
+                      }
+                    />
+                    <div className="flex flex-1 flex-col gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        tabIndex={-1}
+                        aria-hidden="true"
+                        onChange={(e) => void handleImageSelect(e)}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={imageBusy}
+                          className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {imageBusy ? (
+                            <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ImagePlus aria-hidden className="h-4 w-4" />
+                          )}
+                          {imageBusy
+                            ? "Procesando..."
+                            : imageUrl
+                              ? "Cambiar imagen"
+                              : "Subir imagen"}
+                        </button>
+                        {imageUrl && !confirmDeleteImage && (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteImage(true)}
+                            disabled={imageBusy}
+                            className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-sm font-medium text-rose-700 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Trash2 aria-hidden className="h-4 w-4" /> Eliminar imagen
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500">JPG, PNG o WEBP. Máximo 2 MB.</p>
+                    </div>
+                  </div>
+                  {confirmDeleteImage && (
+                    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                      <p className="flex-1 text-sm text-rose-700">
+                        ¿Eliminar la imagen del producto?
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void handleImageDelete()}
+                        disabled={imageBusy}
+                        className="rounded-md bg-rose-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {imageBusy ? "Eliminando..." : "Confirmar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteImage(false)}
+                        disabled={imageBusy}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button

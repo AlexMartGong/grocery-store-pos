@@ -1,6 +1,7 @@
 import { AlertCircle, AlertTriangle, Camera, PackageSearch, Search } from "lucide-react";
 import { usePosProducts } from "../hooks/usePosProducts";
 import type { ProductResponse } from "../../products/types";
+import { ProductImage } from "../../../shared/components/ui/ProductImage";
 import { formatMoney, getInitials, pastelColorFromId } from "../utils/format";
 
 const stockTone = (current: string, minimum: string) => {
@@ -44,12 +45,19 @@ const ProductCard = ({
       }`}
     >
       <div className="flex items-start justify-between gap-2">
-        <div
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-bold ${palette}`}
-          aria-hidden="true"
-        >
-          {initials}
-        </div>
+        <ProductImage
+          src={product.image_url}
+          alt=""
+          className="h-12 w-12 shrink-0 rounded-full object-cover"
+          fallback={
+            <div
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-bold ${palette}`}
+              aria-hidden="true"
+            >
+              {initials}
+            </div>
+          }
+        />
         {outOfStock && (
           <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700">
             Agotado

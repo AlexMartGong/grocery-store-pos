@@ -9,6 +9,7 @@ export interface ProductResponse {
   current_stock: string;
   minimum_stock: string;
   unit_of_measure: UnitOfMeasure;
+  image_url?: string | null;
   active: boolean;
   updated_at: string;
 }
