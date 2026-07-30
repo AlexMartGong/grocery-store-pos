@@ -607,9 +607,18 @@ Subsequent features MUST reuse these primitives:
   with key **`file`** (backend `@RequestParam("file")`) and a `Content-Type: multipart/form-data`
   override (axios injects the boundary); `deleteProductImage(id)`; both return the updated
   `ProductResponse`. Backend limits are mirrored client-side **before** the request (module constants in
-  `ProductForm.tsx`): MIME `image/jpeg | image/png | image/webp`, max `2 * 1024 * 1024` bytes —
-  violations toast the matching `PRODUCTS_ERROR_MESSAGES` texts (`image_type_not_allowed`,
-  `image_too_large`) without hitting the network.
+  `ProductForm.tsx`): MIME `image/jpeg | image/png | image/webp`; size caps `MAX_SOURCE_IMAGE_BYTES`
+  (`10 * 1024 * 1024`, pre-optimization sanity cap on the original) and `MAX_IMAGE_BYTES`
+  (`2 * 1024 * 1024`, backend limit, enforced on the **optimized** file) — violations toast the matching
+  `PRODUCTS_ERROR_MESSAGES` texts (`image_type_not_allowed`, `image_too_large`) without hitting the
+  network.
+    - **Client-side optimization (`src/shared/utils/imageOptimizer.ts`):** every upload passes through
+      `compressAndConvertToWebP(file, maxDimension = 800, quality = 0.82)` before `uploadProductImage`
+      — downscales so the largest side is ≤ 800 px (smaller images keep their dimensions) and
+      re-encodes as WebP via canvas `toBlob` (a non-WebP encoder result is rejected so mislabeled bytes
+      never upload). Best-effort contract: any failure resolves with the **original** `File` (never
+      rejects); the post-optimization `MAX_IMAGE_BYTES` check then catches oversized fallbacks. Reuse
+      this helper for any future image upload — never inline canvas code per feature.
     - **`ProductImage` (`src/shared/components/ui/ProductImage.tsx`):** shared `<img loading="lazy">`
       wrapper with a required `fallback: ReactNode` rendered when `src` is empty **or** `onError` fires.
       The error flag resets on `src` change inside `requestAnimationFrame` (lint-safe) because upload
