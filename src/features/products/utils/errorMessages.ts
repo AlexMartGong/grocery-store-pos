@@ -7,6 +7,10 @@ export const PRODUCTS_ERROR_MESSAGES: Record<string, string> = {
   validation_failed: "Revisa los campos resaltados e inténtalo de nuevo.",
   forbidden: "No tienes permisos para esta acción.",
   conflict: "No se puede completar la operación.",
+  image_type_not_allowed:
+    "Formato no permitido. Solo se aceptan imágenes JPG, PNG o WEBP.",
+  image_too_large: "La imagen excede el tamaño máximo permitido de 2 MB.",
+  file_required: "Debes seleccionar una imagen válida.",
 };
 
 const NETWORK_ERROR = "Error de red. Verifica tu conexión e inténtalo de nuevo.";

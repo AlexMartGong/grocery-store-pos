@@ -156,6 +156,7 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 - **POS / cart** — "POS / sales module" + "Sales history list".
 - **Cash shift gate** — "Cash shifts module (`/pos/*` gate)".
 - **Scanner & scale** — "Barcode scanning (dual: HID scanner + camera)", "Physical scale integration".
+- **Product images** — "Product images (upload + thumbnails)".
 - **Notifications, inventory, credit payments** — short sub-sections near the end.
 - **Agent printer settings** — "Agent printer settings — multi-station".
 - **Lint compliance** — "Lint compliance — `react-hooks/set-state-in-effect`" and "`react-hooks/refs`".
@@ -185,6 +186,9 @@ Subsequent features MUST reuse these primitives:
       `notification_not_found`, `forbidden`)
     - `mapInventoryError` — `src/features/inventory/utils/errorMessages.ts` (codes: `product_not_found`,
       `reason_not_allowed`, `validation_failed`, `forbidden`, `conflict`)
+    - `mapProductsError` — `src/features/products/utils/errorMessages.ts` (codes: `product_not_found`,
+      `product_barcode_taken`, `validation_failed`, `forbidden`, `conflict`, `image_type_not_allowed`,
+      `image_too_large`, `file_required`)
 
   Never add unrelated error codes to another feature's map.
 - **Field-level error state:** When endpoint returns `400` `{ error: "validation_failed", fields:
@@ -385,8 +389,14 @@ Subsequent features MUST reuse these primitives:
       chip opens this modal.
     - **ProductGrid `onProductClick` prop:** Required
       `onProductClick: (product: ProductResponse) => void` — no longer calls `addItem` directly.
-      `PosScreen` owns dispatch (KILO → `QuantityModal`, PIECE → `addItem`). `ProductCard` receives
-      `onAdd` from `ProductGrid`.
+      `PosScreen` owns dispatch (KILO → `QuantityModal`, PIECE → `addItem`). `ProductCard` lives in
+      its own file (`src/features/sales/components/ProductCard.tsx`, owns the `stockTone` helper) and
+      receives `onAdd` from `ProductGrid`. Card layout: root `<button>` is
+      `flex flex-col overflow-hidden` (no root padding — `overflow-hidden` lets the image area inherit
+      the top rounding); full-width `h-24` image area on top (`bg-slate-50/60`, centered, `p-2`,
+      "Agotado" pill overlays `absolute right-2 top-2`); content below in `flex flex-1 flex-col gap-2
+      p-3` (name, barcode, price + stock badge on an `mt-auto` row). `SkeletonCard` in
+      `ProductGrid.tsx` mirrors this layout (`h-24` pulse block + `p-3` lines).
     - **Cart quantity formatting:** `formatQty(item: CartItem)` inside `CartSidebar` —
       KILO: `` `${qty.toFixed(3)} kg` ``; PIECE integer: `` `${qty} pz` ``; PIECE fraction:
       `` `${qty.toFixed(1)} pz` ``. Quantity chip between `−` / `+` is a clickable `<button>` opening
@@ -596,6 +606,40 @@ Subsequent features MUST reuse these primitives:
     - **`data-allow-scanner` opt-in:** Only attach this attribute to inputs that should accept scanner
       bytes (e.g., a catalog search). The hook itself enforces the suppression — do not also add custom
       `onKeyDown` handlers to strip digits; that double-blocks legitimate human typing.
+
+- **Product images (upload + thumbnails):** `ProductResponse.image_url` (`?: string | null`, absolute
+  R2 URL, server-managed — never add it to `Create*`/`Update*` types). API in
+  `src/features/products/api/productsApi.ts`: `uploadProductImage(id, file)` posts multipart `FormData`
+  with key **`file`** (backend `@RequestParam("file")`) and a `Content-Type: multipart/form-data`
+  override (axios injects the boundary); `deleteProductImage(id)`; both return the updated
+  `ProductResponse`. Backend limits are mirrored client-side **before** the request (module constants in
+  `ProductForm.tsx`): MIME `image/jpeg | image/png | image/webp`; size caps `MAX_SOURCE_IMAGE_BYTES`
+  (`10 * 1024 * 1024`, pre-optimization sanity cap on the original) and `MAX_IMAGE_BYTES`
+  (`2 * 1024 * 1024`, backend limit, enforced on the **optimized** file) — violations toast the matching
+  `PRODUCTS_ERROR_MESSAGES` texts (`image_type_not_allowed`, `image_too_large`) without hitting the
+  network.
+    - **Client-side optimization (`src/shared/utils/imageOptimizer.ts`):** every upload passes through
+      `compressAndConvertToWebP(file, maxDimension = 800, quality = 0.82)` before `uploadProductImage`
+      — downscales so the largest side is ≤ 800 px (smaller images keep their dimensions) and
+      re-encodes as WebP via canvas `toBlob` (a non-WebP encoder result is rejected so mislabeled bytes
+      never upload). Best-effort contract: any failure resolves with the **original** `File` (never
+      rejects); the post-optimization `MAX_IMAGE_BYTES` check then catches oversized fallbacks. Reuse
+      this helper for any future image upload — never inline canvas code per feature.
+    - **`ProductImage` (`src/shared/components/ui/ProductImage.tsx`):** shared `<img loading="lazy">`
+      wrapper with a required `fallback: ReactNode` rendered when `src` is empty **or** `onError` fires.
+      The error flag resets on `src` change inside `requestAnimationFrame` (lint-safe) because upload
+      URLs are cache-busted per re-upload. Always render product images through it — never a bare
+      `<img>`.
+    - **Placements:** `ProductForm` (edit mode only, endpoints are OWNER-only) — hidden
+      `<input type="file" accept="image/jpeg,image/png,image/webp">` triggered by a "Cambiar/Subir
+      imagen" button, inline rose confirm row for "Eliminar imagen" (no `window.confirm`), `sonner`
+      toasts, busy state with `Loader2` spinner. `ProductsList` — `h-10 w-10 rounded-md bg-slate-100
+      object-cover` thumb in a leading table column (`w-14`, `sr-only` "Imagen" header — full-width rows
+      use `colSpan={7}`) and in the mobile card header; fallback = `Package` icon tile (`ThumbFallback`).
+      POS `ProductCard` — image renders inside the full-width `h-24` top area via `ProductImage` with
+      `max-h-full max-w-full object-contain` (no cropping — bottles/packages show fully); fallback
+      stays the `getInitials` + `pastelColorFromId` circle, centered at `h-14 w-14` (`alt=""`, card
+      button owns the `aria-label`).
 
 - **Notifications module (`src/features/notifications/`):** Server-push alerts for OWNER only
   (LOW_STOCK, OUT_OF_STOCK, OVERDUE_CREDIT). `StoreLayout` fetches unread on mount for `OWNER` role.

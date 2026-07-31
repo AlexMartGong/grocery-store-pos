@@ -15,6 +15,7 @@ import { deleteProduct, getProducts } from "../api/productsApi";
 import { mapProductsError } from "../utils/errorMessages";
 import { useAuthStore } from "../../auth/store/authStore";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
+import { ProductImage } from "../../../shared/components/ui/ProductImage";
 import { QuickPriceModal } from "./QuickPriceModal";
 import { AdjustStockModal } from "./AdjustStockModal";
 import { ProductKardexModal } from "./ProductKardexModal";
@@ -37,6 +38,15 @@ const formatMoney = (value: string) => {
     minimumFractionDigits: 2,
   });
 };
+
+const ThumbFallback = () => (
+  <div
+    aria-hidden="true"
+    className="flex h-10 w-10 items-center justify-center rounded-md bg-slate-100 text-slate-400"
+  >
+    <Package className="h-5 w-5" />
+  </div>
+);
 
 interface StockBadge {
   className: string;
@@ -209,11 +219,19 @@ export const ProductsList = () => {
                   className="space-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-0.5">
-                      <p className="font-medium text-slate-900">{p.name}</p>
-                      <p className="font-mono text-xs text-slate-500">
-                        {p.barcode ?? "—"}
-                      </p>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <ProductImage
+                        src={p.image_url}
+                        alt={p.name}
+                        className="h-10 w-10 shrink-0 rounded-md bg-slate-100 object-cover"
+                        fallback={<ThumbFallback />}
+                      />
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="font-medium text-slate-900">{p.name}</p>
+                        <p className="font-mono text-xs text-slate-500">
+                          {p.barcode ?? "—"}
+                        </p>
+                      </div>
                     </div>
                     {badge && (
                       <span
@@ -314,6 +332,9 @@ export const ProductsList = () => {
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
+                <th className="w-14 px-4 py-3 font-medium">
+                  <span className="sr-only">Imagen</span>
+                </th>
                 <th className="px-4 py-3 font-medium">Código</th>
                 <th className="px-4 py-3 font-medium">Nombre</th>
                 <th className="px-4 py-3 font-medium text-right">Precio</th>
@@ -325,14 +346,14 @@ export const ProductsList = () => {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
                     Cargando...
                   </td>
                 </tr>
               )}
               {!loading && products.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
                     Sin productos.
                   </td>
                 </tr>
@@ -343,6 +364,14 @@ export const ProductsList = () => {
                   return (
                     <Fragment key={p.id}>
                       <tr className="hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <ProductImage
+                            src={p.image_url}
+                            alt={p.name}
+                            className="h-10 w-10 rounded-md bg-slate-100 object-cover"
+                            fallback={<ThumbFallback />}
+                          />
+                        </td>
                         <td className="px-4 py-3 font-mono text-xs text-slate-900">
                           {p.barcode ?? "—"}
                         </td>
@@ -416,7 +445,7 @@ export const ProductsList = () => {
                       </tr>
                       {confirmDeleteId === p.id && (
                         <tr className="bg-rose-50">
-                          <td colSpan={6} className="px-4 py-3">
+                          <td colSpan={7} className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               <p className="flex-1 text-sm text-rose-700">
                                 ¿Eliminar producto &ldquo;{p.name}&rdquo;?

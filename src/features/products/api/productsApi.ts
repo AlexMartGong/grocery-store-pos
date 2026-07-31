@@ -51,6 +51,23 @@ export async function updateProductPrices(
   return res.data;
 }
 
+export async function uploadProductImage(
+  id: string,
+  file: File,
+): Promise<ProductResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await apiClient.post<ProductResponse>(`/products/${id}/image`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+}
+
+export async function deleteProductImage(id: string): Promise<ProductResponse> {
+  const res = await apiClient.delete<ProductResponse>(`/products/${id}/image`);
+  return res.data;
+}
+
 export async function deleteProduct(id: string): Promise<void> {
   await apiClient.delete(`/products/${id}`);
 }
