@@ -389,8 +389,14 @@ Subsequent features MUST reuse these primitives:
       chip opens this modal.
     - **ProductGrid `onProductClick` prop:** Required
       `onProductClick: (product: ProductResponse) => void` — no longer calls `addItem` directly.
-      `PosScreen` owns dispatch (KILO → `QuantityModal`, PIECE → `addItem`). `ProductCard` receives
-      `onAdd` from `ProductGrid`.
+      `PosScreen` owns dispatch (KILO → `QuantityModal`, PIECE → `addItem`). `ProductCard` lives in
+      its own file (`src/features/sales/components/ProductCard.tsx`, owns the `stockTone` helper) and
+      receives `onAdd` from `ProductGrid`. Card layout: root `<button>` is
+      `flex flex-col overflow-hidden` (no root padding — `overflow-hidden` lets the image area inherit
+      the top rounding); full-width `h-24` image area on top (`bg-slate-50/60`, centered, `p-2`,
+      "Agotado" pill overlays `absolute right-2 top-2`); content below in `flex flex-1 flex-col gap-2
+      p-3` (name, barcode, price + stock badge on an `mt-auto` row). `SkeletonCard` in
+      `ProductGrid.tsx` mirrors this layout (`h-24` pulse block + `p-3` lines).
     - **Cart quantity formatting:** `formatQty(item: CartItem)` inside `CartSidebar` —
       KILO: `` `${qty.toFixed(3)} kg` ``; PIECE integer: `` `${qty} pz` ``; PIECE fraction:
       `` `${qty.toFixed(1)} pz` ``. Quantity chip between `−` / `+` is a clickable `<button>` opening
@@ -630,9 +636,10 @@ Subsequent features MUST reuse these primitives:
       toasts, busy state with `Loader2` spinner. `ProductsList` — `h-10 w-10 rounded-md bg-slate-100
       object-cover` thumb in a leading table column (`w-14`, `sr-only` "Imagen" header — full-width rows
       use `colSpan={7}`) and in the mobile card header; fallback = `Package` icon tile (`ThumbFallback`).
-      POS `ProductGrid` card — image replaces the avatar only when `image_url` exists; fallback stays
-      the existing `getInitials` + `pastelColorFromId` circle (`alt=""`, card button owns the
-      `aria-label`).
+      POS `ProductCard` — image renders inside the full-width `h-24` top area via `ProductImage` with
+      `max-h-full max-w-full object-contain` (no cropping — bottles/packages show fully); fallback
+      stays the `getInitials` + `pastelColorFromId` circle, centered at `h-14 w-14` (`alt=""`, card
+      button owns the `aria-label`).
 
 - **Notifications module (`src/features/notifications/`):** Server-push alerts for OWNER only
   (LOW_STOCK, OUT_OF_STOCK, OVERDUE_CREDIT). `StoreLayout` fetches unread on mount for `OWNER` role.
