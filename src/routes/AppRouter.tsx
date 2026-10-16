@@ -28,6 +28,11 @@ const StoreForm = lazy(() =>
     default: m.StoreForm,
   })),
 );
+const SubscriptionsScreen = lazy(() =>
+  import("../features/subscriptions/components/SubscriptionsScreen").then((m) => ({
+    default: m.SubscriptionsScreen,
+  })),
+);
 const ProvisionOwnerForm = lazy(() =>
   import("../features/admin/components/ProvisionOwnerForm").then((m) => ({
     default: m.ProvisionOwnerForm,
@@ -101,6 +106,7 @@ const router = createBrowserRouter([
       { path: "stores/new", element: suspense(<StoreForm />) },
       { path: "stores/:id/edit", element: suspense(<StoreForm />) },
       { path: "stores/:id/provision-owner", element: suspense(<ProvisionOwnerForm />) },
+      { path: "subscriptions", element: suspense(<SubscriptionsScreen />) },
     ],
   },
   {
