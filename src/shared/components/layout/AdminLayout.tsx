@@ -1,4 +1,4 @@
-import { LayoutDashboard, LogOut, Menu, Store } from "lucide-react";
+import { CreditCard, LayoutDashboard, LogOut, Menu, Store } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuthStore } from "../../../features/auth/store/authStore";
 import { navLinkClass, useMobileMenu } from "../../hooks/useMobileMenu";
@@ -34,6 +34,10 @@ export const AdminLayout = () => {
           <NavLink to="/admin/stores" className={navLinkClass} onClick={closeMenu}>
             <Store size={18} />
             Stores
+          </NavLink>
+          <NavLink to="/admin/subscriptions" className={navLinkClass} onClick={closeMenu}>
+            <CreditCard size={18} />
+            Suscripciones
           </NavLink>
         </nav>
       </aside>

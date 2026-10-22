@@ -189,6 +189,9 @@ Subsequent features MUST reuse these primitives:
     - `mapProductsError` — `src/features/products/utils/errorMessages.ts` (codes: `product_not_found`,
       `product_barcode_taken`, `validation_failed`, `forbidden`, `conflict`, `image_type_not_allowed`,
       `image_too_large`, `file_required`)
+    - `mapSubscriptionsError` — `src/features/subscriptions/utils/errorMessages.ts` (codes: `plan_not_found`,
+      `subscription_not_found`, `station_limit_exceeded`, `store_not_found`, `validation_failed`, `forbidden`,
+      `conflict`)
 
   Never add unrelated error codes to another feature's map.
 - **Field-level error state:** When endpoint returns `400` `{ error: "validation_failed", fields:
@@ -225,6 +228,7 @@ Subsequent features MUST reuse these primitives:
         - `/admin/stores/new` — StoreForm (create)
         - `/admin/stores/:id/edit` — StoreForm (edit)
         - `/admin/stores/:id/provision-owner` — ProvisionOwnerForm (cold-start OWNER user)
+        - `/admin/subscriptions` — SubscriptionsScreen (SaaS plans, KPIs, upcoming billings)
     - `/pos` — StoreGuard → StoreLayout (OWNER / CASHIER)
         - `/pos` (index) — `<Navigate to="sales" replace />`
         - `/pos/sales` — PosScreen (cash register UI: catalog + cart + checkout)
@@ -729,3 +733,58 @@ Subsequent features MUST reuse these primitives:
       step; disabled when `!reading.isStable` or `reading.error`. The manual `type="number"` input and
       its `Cancelar` / `Confirmar` buttons stay untouched as the fallback when the scale fails or the
       cashier needs a different weight — never remove or hide them.
+
+- **SaaS subscriptions module (`/admin/subscriptions`, `src/features/subscriptions/`):** SUPER_ADMIN-only
+  plan management inside `AdminLayout`. Sidebar `NavLink` uses `CreditCard` (distinct-icon rule).
+    - **Wire format is snake_case for this feature only.** `SubscriptionPlanResponse`,
+      `SubscriptionResponse`, `ChangePlanRequest`, `UpcomingBillingResponse` and
+      `SubscriptionSummaryResponse` carry explicit `@JsonProperty` on the backend, while its siblings
+      (`StoreResponse`, `SaasPaymentResponse`) are camelCase — there is **no** global Jackson naming
+      strategy, so the format is per-DTO. Never "normalize" one to match the other.
+      `SubscriptionStatus` is defined here and **re-exported** by
+      `src/features/admin/types/subscriptions.ts` (same idiom as `UserRole` from `auth/types`) — one
+      definition, two consumers.
+    - **`subscriptionsApi.ts`:** `getPlans()`, `getUpcomingBillings()`, `getSubscriptionsSummary()`,
+      `getStoreSubscription(storeId)` (**404 → `null`**, mirroring `cashApi.getCurrentShift` — a store
+      with no plan is a state, not an error), `changePlan(storeId, data)`. The store selector reuses
+      `getStores` from `src/features/stores/api/storesApi.ts` — do not add a second store-listing call.
+    - **`ChangePlanRequest` is `{ plan_code, billing_cycle }` and nothing else.** Payment method and
+      notes belong to `POST /admin/stores/:id/payments` (`RegisterSaasPaymentModal` in the `admin`
+      feature); adding them here would be silently dropped by the backend record.
+    - **Pricing is never computed client-side.** `yearly_fee` (= `monthly_fee × 10`, two months free)
+      and `due_next_7_days_amount` both arrive from the backend. Display-only formatting goes through
+      the local `formatMoney` in `subscriptions/utils/format.ts`.
+    - **`formatBillingDate` (`subscriptions/utils/format.ts`):** billing dates are ISO `LocalDate`
+      strings (`"2026-08-14"`), which `new Date` parses as **UTC midnight** — rendering as the previous
+      day in `America/Mexico_City`. The formatter pins `timeZone: "UTC"`; `daysUntil` compares UTC
+      midnights on both sides. `formatSaleDate` in `sales/utils/format.ts` handles timestamps and does
+      **not** cover this case — never reuse it for date-only fields.
+    - **`buildWhatsAppUrl` (`subscriptions/utils/whatsapp.ts`):** returns `string | null`. Stored
+      numbers are free-text `VARCHAR(20)`, so it strips non-digits and prefixes `52` **only** when the
+      number is a bare 10-digit national one — blind prefixing yields `525255…`. `null` (no/short
+      number) makes the caller render a disabled `<span>` with a `title`, never a broken link. The
+      live action is a real `<a target="_blank" rel="noopener noreferrer">`, not a `window.open`
+      handler, so keyboard and middle-click work.
+    - **`UpcomingBillingsTable`:** desktop `<table>` + mobile `<ul>` cards per the responsive rule.
+      The due-date chip is **color + icon + text** (WCAG 1.4.1): `Vencido` rose/`AlertTriangle`, `Hoy`
+      amber/`Clock`, `En N días` slate/`CalendarClock`. "Vencido" is reachable by design — a
+      subscription stays ACTIVE through the backend scheduler's grace period, so late payers keep
+      appearing in the collection window.
+    - **`PlanTierCard`:** one component, two modes. With `onSelect` it renders a `<label>` wrapping a
+      visually hidden native `<input type="radio">` so arrow-key navigation and screen-reader grouping
+      come for free; without it, a read-only card for `PlansCatalogModal`. Never replace the radio with
+      a styled `<div role="radio">`.
+    - **`ChangePlanModal`:** hand-rolled shell (like `RegisterSaasPaymentModal`) rather than the shared
+      `Modal`, which is capped at `max-w-md` — too narrow for three tiers side by side.
+      `PlansCatalogModal` does the same for the same reason. Preselects the store's current plan and
+      cycle from `useStoreSubscription` so "switch to yearly" is two clicks. On **409
+      `station_limit_exceeded`** (downgrading below the store's active-station count) the modal stays
+      open with the tier cards live so the admin can pick a higher tier without starting over.
+    - **Hooks carry the loading logic** (`useSubscriptionsOverview`, `usePlansCatalog(enabled)`,
+      `useStoreSubscription(storeId | null)`) so no component approaches the 150–200 line limit.
+      `useSubscriptionsOverview` fetches summary + billings in one `Promise.all`: the KPI header's
+      7-day figures come from the same server-side query as the table, so a partial refresh would let
+      them disagree.
+    - **Out of scope (backend has no endpoint):** per-store station usage (only the tenant-scoped
+      `GET /stores/me/stations` exists, so cards show the plan's `max_stations` cap, not actual usage)
+      and SaaS payment history (`SaasPaymentRepository` has no finders and no controller reads it).

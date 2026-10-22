@@ -1,3 +1,5 @@
+import type { SubscriptionStatus } from "../../subscriptions/types";
+
 // SaaS subscription billing DTOs (admin / SUPER_ADMIN only).
 // Endpoint: POST /admin/stores/:storeId/payments — registers a monthly subscription payment.
 // Backend serializes these as camelCase (no @JsonProperty). Monetary/date fields cross the
@@ -9,7 +11,9 @@ export type PaymentMethod = "CASH" | "TRANSFER";
 
 export type SaasPaymentConcept = "SETUP_FEE" | "MONTHLY_FEE";
 
-export type SubscriptionStatus = "ACTIVE" | "OVERDUE" | "CANCELED";
+// Single source of truth lives with the subscriptions feature (same idiom as UserRole
+// re-exported from auth/types) — a payment response echoes the subscription's status.
+export type { SubscriptionStatus };
 
 export interface RegisterSaasPaymentRequest {
   amount: string; // BigDecimal as string (2-decimal)
