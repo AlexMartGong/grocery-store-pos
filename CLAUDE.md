@@ -11,7 +11,7 @@ Guidance for Claude Code on the `grocery-store` POS/SaaS frontend.
 
 | Command         | Purpose                                                              |
 |-----------------|----------------------------------------------------------------------|
-| `pnpm install`  | Install dependencies (Node 20.19+, 22.13+ or ≥ 24; **pnpm ≥ 9**)     |
+| `pnpm install`  | Install dependencies (Node 20.19+, 22.13+ or ≥ 24; **pnpm ≥ 10.16**) |
 | `pnpm dev`      | Vite dev server with HMR; `--host` exposes it on the LAN             |
 | `pnpm build`    | `tsc -b && vite build` — strict type-check + production bundle       |
 | `pnpm lint`     | ESLint over the whole repo                                           |
@@ -20,7 +20,10 @@ Guidance for Claude Code on the `grocery-store` POS/SaaS frontend.
 **No test runner.** Verification baseline: `pnpm lint && pnpm build`, then `pnpm dev` for manual UI checks.
 
 **Package manager — pnpm only.** `pnpm-lock.yaml` is source of truth. Never run `npm install` / `yarn` /
-`npm run …` — desyncs lockfile and pulls mismatched transitive versions.
+`npm run …` — desyncs lockfile and pulls mismatched transitive versions. `pnpm-workspace.yaml` sets
+`minimumReleaseAge: 1440` (pnpm 11's default; enforced from pnpm 10.16): versions published < 24 h ago are
+never resolved, so lockfiles written on pnpm 10 pass pnpm 11's supply-chain check. Don't bypass it to grab
+a same-day release — wait out the window.
 
 **Environment.** Copy `.env.example` → `.env`; only var is `VITE_API_URL` (default `http://localhost:8080`).
 The `/api/v1` prefix is appended by `apiClient` — do not include it in the env value or feature paths.
@@ -509,7 +512,9 @@ Subsequent features MUST reuse these primitives:
   `useEffect(() => { void load(); }, [load])` — rule allows setState inside the async function.
   **`eslint-plugin-react-hooks` is held at `~7.0.1`:** 7.1+ also flags setState that runs before the
   first `await` of an effect-invoked loader (this pattern) and the `setPage(0)` reset effect (31 sites).
-  Migrate those call sites before bumping the plugin — never downgrade the rule to `warn`.
+  Migrate those call sites before bumping the plugin — never downgrade the rule to `warn`. 7.0.1's peer
+  range stops at ESLint 9, so `pnpm-workspace.yaml` allows ESLint 10 for it via `peerDependencyRules`
+  (its rules all fire on 10) — delete that entry in the same change that bumps the plugin.
 
 - **Lint compliance — `react-hooks/refs`:** Do **not** read `ref.current` during render. Use `useState`
   updated inside a `requestAnimationFrame` callback in a `useEffect` (see "Caching last prop"). Refs are
