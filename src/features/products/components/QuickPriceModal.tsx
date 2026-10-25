@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useState, type SyntheticEvent } from "react";
 import { AlertCircle, Save } from "lucide-react";
 import { Modal } from "../../../shared/components/ui/Modal";
 import { updateProductPrices } from "../api/productsApi";
@@ -28,13 +28,17 @@ export const QuickPriceModal = ({ isOpen, product, onClose, onSaved }: QuickPric
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (!product) return;
-    setSalePrice(product.sale_price);
-    setPurchaseCost(product.purchase_cost);
-    setError(null);
-    setFieldErrors({});
-  }, [product]);
+  // Re-seed the form whenever a different product is passed in.
+  const [seededFor, setSeededFor] = useState<typeof product>(null);
+  if (product !== seededFor) {
+    setSeededFor(product);
+    if (product) {
+      setSalePrice(product.sale_price);
+      setPurchaseCost(product.purchase_cost);
+      setError(null);
+      setFieldErrors({});
+    }
+  }
 
   const onSubmit = async (e: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     e.preventDefault();

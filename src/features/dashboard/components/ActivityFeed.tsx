@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { Activity, AlertCircle, Loader2, Tag } from "lucide-react";
 import { getAuditLogs } from "../api/dashboardApi";
 import type { AuditLogResponse } from "../types";
 import { formatRelativeTime } from "../../notifications/utils/relativeTime";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 
 const mapAuditError = (err: unknown): string => {
   if (axios.isAxiosError(err)) {
@@ -12,6 +12,8 @@ const mapAuditError = (err: unknown): string => {
   }
   return "No se pudo cargar la actividad reciente.";
 };
+
+const fetchRecentLogs = () => getAuditLogs();
 
 const ItemIcon = ({ action }: { action: string }) => {
   const Icon = action === "PRICE_CHANGED" ? Tag : Activity;
@@ -43,26 +45,8 @@ const ItemBody = ({ log }: { log: AuditLogResponse }) => {
 };
 
 export const ActivityFeed = () => {
-  const [logs, setLogs] = useState<AuditLogResponse[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getAuditLogs();
-      setLogs(data.content);
-    } catch (err) {
-      setError(mapAuditError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { data, loading, error } = useAsyncData(fetchRecentLogs, mapAuditError);
+  const logs: AuditLogResponse[] = data?.content ?? [];
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 md:p-6">

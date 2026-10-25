@@ -1,9 +1,10 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, Pencil, Plus, Search, Trash2, Users as UsersIcon } from "lucide-react";
 import { deleteUser, getUsers } from "../api/usersApi";
 import { mapUsersError } from "../utils/errorMessages";
 import { useAuthStore } from "../../auth/store/authStore";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import type { UserResponse, UserRole } from "../types";
 
 const PAGE_SIZE = 10;
@@ -22,44 +23,28 @@ const INACTIVE_BADGE = "bg-slate-100 text-slate-600 ring-slate-200";
 export const UsersList = () => {
   const navigate = useNavigate();
   const currentUserId = useAuthStore((s) => s.user?.userId);
-  const [users, setUsers] = useState<UserResponse[]>([]);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const active =
-        activeFilter === "ALL" ? undefined : activeFilter === "ACTIVE";
-      const role = roleFilter === "ALL" ? undefined : roleFilter;
-      const data = await getUsers(page, PAGE_SIZE, active, role);
-      setUsers(data.content);
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError(mapUsersError(err));
-    } finally {
-      setLoading(false);
-    }
+  const fetchUsers = useCallback(() => {
+    const active = activeFilter === "ALL" ? undefined : activeFilter === "ACTIVE";
+    const role = roleFilter === "ALL" ? undefined : roleFilter;
+    return getUsers(page, PAGE_SIZE, active, role);
   }, [page, roleFilter, activeFilter]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { data, loading, error, reload, reportError } = useAsyncData(fetchUsers, mapUsersError);
+  const users = data?.content ?? [];
+  const totalPages = data?.totalPages ?? 0;
 
   const onDelete = async (user: UserResponse) => {
     try {
       await deleteUser(user.id);
       setConfirmDeleteId(null);
-      await load();
+      reload();
     } catch (err) {
-      setError(mapUsersError(err));
+      reportError(mapUsersError(err));
       setConfirmDeleteId(null);
     }
   };

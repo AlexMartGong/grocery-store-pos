@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useMemo, useState, type SyntheticEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AlertCircle, ArrowLeft, Save, UserPlus } from "lucide-react";
 import {
@@ -8,6 +8,7 @@ import {
   updateCustomer,
 } from "../api/customersApi";
 import { mapCustomersError } from "../utils/errorMessages";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import type { ApiErrorResponse } from "../../auth/types";
 
 interface FormState {
@@ -35,35 +36,27 @@ export const CustomerForm = () => {
   const isEdit = Boolean(id);
 
   const [form, setForm] = useState<FormState>(INITIAL);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (!isEdit || !id) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    void (async () => {
-      try {
-        const customer = await getCustomerById(id);
-        if (cancelled) return;
-        setForm({
-          full_name: customer.full_name,
-          phone: customer.phone ?? "",
-          credit_limit: customer.credit_limit,
-        });
-      } catch (err) {
-        if (!cancelled) setError(mapCustomersError(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, isEdit]);
+  const fetchCustomer = useMemo(() => (id ? () => getCustomerById(id) : null), [id]);
+  const { data: customer, loading, error: loadError } = useAsyncData(
+    fetchCustomer,
+    mapCustomersError,
+  );
+  const error = submitError ?? loadError;
+
+  // Seed the editable form once per fetched customer — adjusted during render, not in an effect.
+  const [seededFrom, setSeededFrom] = useState(customer);
+  if (customer && customer !== seededFrom) {
+    setSeededFrom(customer);
+    setForm({
+      full_name: customer.full_name,
+      phone: customer.phone ?? "",
+      credit_limit: customer.credit_limit,
+    });
+  }
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -71,7 +64,7 @@ export const CustomerForm = () => {
   const onSubmit = async (e: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     e.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setSubmitError(null);
     setFieldErrors({});
     const payload = {
       full_name: form.full_name.trim(),
@@ -89,7 +82,7 @@ export const CustomerForm = () => {
       if (axios.isAxiosError<ApiErrorResponse>(err) && err.response?.data?.fields) {
         setFieldErrors(err.response.data.fields);
       }
-      setError(mapCustomersError(err));
+      setSubmitError(mapCustomersError(err));
     } finally {
       setSubmitting(false);
     }

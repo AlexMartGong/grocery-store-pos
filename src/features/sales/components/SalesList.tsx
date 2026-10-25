@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
@@ -15,6 +15,7 @@ import { getSales } from "../api/salesApi";
 import { getProductById } from "../../products/api/productsApi";
 import { getCustomerById } from "../../customers/api/customersApi";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import { mapSalesError } from "../utils/errorMessages";
 import { formatMoney, formatSaleDate, formatSaleId } from "../utils/format";
 import { SaleSummaryModal } from "./SaleSummaryModal";
@@ -56,18 +57,13 @@ export const SalesList = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const customerId = searchParams.get("customerId") ?? undefined;
 
-  const [sales, setSales] = useState<SaleResponse[]>([]);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput, 400);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [customerName, setCustomerName] = useState<string | null>(null);
 
   const [selectedSale, setSelectedSale] = useState<SaleResponse | null>(null);
   const [modalCartItems, setModalCartItems] = useState<CartItem[]>([]);
@@ -83,11 +79,17 @@ export const SalesList = () => {
     return () => clearTimeout(t);
   }, [printToast]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getSales({
+  // Any filter change sends the list back to page 0 — adjusted during render, not in an effect.
+  const filterKey = [customerId, paymentMethod, debouncedSearch, startDate, endDate].join("|");
+  const [pageFilterKey, setPageFilterKey] = useState(filterKey);
+  if (pageFilterKey !== filterKey) {
+    setPageFilterKey(filterKey);
+    setPage(0);
+  }
+
+  const fetchSales = useCallback(
+    () =>
+      getSales({
         page,
         size: PAGE_SIZE,
         customerId,
@@ -95,41 +97,23 @@ export const SalesList = () => {
         search: debouncedSearch || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-      });
-      setSales(data.content);
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError(mapSalesError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, customerId, paymentMethod, debouncedSearch, startDate, endDate]);
+      }),
+    [page, customerId, paymentMethod, debouncedSearch, startDate, endDate],
+  );
+  const { data, loading, error, reload, reportError } = useAsyncData(fetchSales, mapSalesError);
+  const sales = data?.content ?? [];
+  const totalPages = data?.totalPages ?? 0;
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    setPage(0);
-  }, [customerId, paymentMethod, debouncedSearch, startDate, endDate]);
-
-  useEffect(() => {
-    if (!customerId) {
-      setCustomerName(null);
-      return;
-    }
-    let alive = true;
-    getCustomerById(customerId)
-      .then((c) => {
-        if (alive) setCustomerName(c.full_name);
-      })
-      .catch(() => {
-        if (alive) setCustomerName(null);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [customerId]);
+  const fetchCustomer = useMemo(
+    () => (customerId ? () => getCustomerById(customerId) : null),
+    [customerId],
+  );
+  const customerQuery = useAsyncData(fetchCustomer, mapSalesError);
+  // Falls back to the id label while loading or on error — never another customer's name.
+  const customerName =
+    customerId && !customerQuery.loading && !customerQuery.error
+      ? (customerQuery.data?.full_name ?? null)
+      : null;
 
   const clearCustomer = () => {
     const next = new URLSearchParams(searchParams);
@@ -139,7 +123,7 @@ export const SalesList = () => {
 
   const openSale = async (sale: SaleResponse) => {
     setLoadingDetailId(sale.id);
-    setError(null);
+    reportError(null);
     try {
       const uniqueIds = Array.from(new Set(sale.items.map((i) => i.product_id)));
       const products = await Promise.all(
@@ -167,7 +151,7 @@ export const SalesList = () => {
       setModalCartItems(items);
       setSelectedSale(sale);
     } catch (err) {
-      setError(mapSalesError(err));
+      reportError(mapSalesError(err));
     } finally {
       setLoadingDetailId(null);
     }
@@ -500,7 +484,7 @@ export const SalesList = () => {
         onClose={() => setCancelTarget(null)}
         onSuccess={() => {
           setCancelTarget(null);
-          void load();
+          reload();
         }}
       />
     </div>

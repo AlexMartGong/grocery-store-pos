@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   AlertCircle,
   ArrowDownCircle,
@@ -10,6 +10,7 @@ import {
 import { getShiftHistory } from "../api/cashApi";
 import { mapCashShiftError } from "../utils/errorMessages";
 import { formatMoney, formatSaleDate } from "../../sales/utils/format";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import type { CashShiftResponse, CashShiftStatus } from "../types";
 
 const PAGE_SIZE = 20;
@@ -43,29 +44,12 @@ const diffDisplay = (difference: string | null): DiffDisplay | null => {
 };
 
 export const CashShiftsScreen = () => {
-  const [shifts, setShifts] = useState<CashShiftResponse[]>([]);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getShiftHistory({ page, size: PAGE_SIZE });
-      setShifts(data.content);
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError(mapCashShiftError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const fetchShifts = useCallback(() => getShiftHistory({ page, size: PAGE_SIZE }), [page]);
+  const { data, loading, error } = useAsyncData(fetchShifts, mapCashShiftError);
+  const shifts: CashShiftResponse[] = data?.content ?? [];
+  const totalPages = data?.totalPages ?? 0;
 
   return (
     <div className="px-4 py-8">

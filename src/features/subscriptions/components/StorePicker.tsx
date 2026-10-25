@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Loader2, Search, Store as StoreIcon, X } from "lucide-react";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import { getStores } from "../../stores/api/storesApi";
 import { mapStoresError } from "../../stores/utils/errorMessages";
 
@@ -17,6 +18,7 @@ interface StorePickerProps {
 }
 
 const RESULT_LIMIT = 8;
+const NO_RESULTS: StoreOption[] = [];
 
 /**
  * Remote-searched store selector. Only ACTIVE stores are offered — a CANCELED tenant has nothing
@@ -26,27 +28,21 @@ export const StorePicker = ({ value, onChange, disabled = false }: StorePickerPr
   const inputId = useId();
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput, 400);
-  const [results, setResults] = useState<StoreOption[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const hasValue = value !== null;
 
-  const load = useCallback(async () => {
-    if (value) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const page = await getStores(0, RESULT_LIMIT, "ACTIVE", debouncedSearch || undefined);
-      setResults(page.content.map((s) => ({ id: s.id, name: s.name })));
-    } catch (err) {
-      setError(mapStoresError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [debouncedSearch, value]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // No search while a store is picked; clearing it searches again.
+  const fetchResults = useMemo(
+    () =>
+      hasValue
+        ? null
+        : async (): Promise<StoreOption[]> => {
+            const page = await getStores(0, RESULT_LIMIT, "ACTIVE", debouncedSearch || undefined);
+            return page.content.map((s) => ({ id: s.id, name: s.name }));
+          },
+    [debouncedSearch, hasValue],
+  );
+  const { data, loading, error } = useAsyncData(fetchResults, mapStoresError);
+  const results = data ?? NO_RESULTS;
 
   if (value) {
     return (

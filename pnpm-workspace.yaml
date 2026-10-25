@@ -1,10 +1,3 @@
 # Supply-chain guard: never resolve a version published less than 24 h ago.
 # Matches the pnpm 11 default so pnpm 10 produces lockfiles pnpm 11 accepts.
 minimumReleaseAge: 1440
-
-peerDependencyRules:
-  allowedVersions:
-    # react-hooks is held at ~7.0.1 (see CLAUDE.md "Lint compliance"); its peer range stops at
-    # eslint 9 but it feature-detects the eslint 10 context API and all its rules fire on 10.
-    # Drop this entry when the plugin is bumped to 7.1+, which declares eslint 10 itself.
-    eslint-plugin-react-hooks>eslint: "10"

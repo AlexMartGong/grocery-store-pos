@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, BadgeDollarSign, Monitor, Pencil, Plus, Search, Store as StoreIcon, Trash2, UserPlus } from "lucide-react";
 import { deleteStore, getStores } from "../api/storesApi";
 import { mapStoresError } from "../utils/errorMessages";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import { RegisterSaasPaymentModal } from "../../admin/components/RegisterSaasPaymentModal";
 import { CreateStationModal } from "../../admin/components/CreateStationModal";
 import type { StoreResponse, StoreStatus } from "../types";
@@ -19,52 +20,42 @@ const STATUS_BADGE: Record<StoreStatus, string> = {
 
 export const StoresList = () => {
   const navigate = useNavigate();
-  const [stores, setStores] = useState<StoreResponse[]>([]);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput, 400);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [paymentStore, setPaymentStore] = useState<StoreResponse | null>(null);
   const [stationStore, setStationStore] = useState<StoreResponse | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getStores(
+  // A new search sends the list back to page 0 — adjusted during render, not in an effect.
+  const [pageSearch, setPageSearch] = useState(debouncedSearch);
+  if (pageSearch !== debouncedSearch) {
+    setPageSearch(debouncedSearch);
+    setPage(0);
+  }
+
+  const fetchStores = useCallback(
+    () =>
+      getStores(
         page,
         PAGE_SIZE,
         statusFilter === "ALL" ? undefined : statusFilter,
         debouncedSearch || undefined,
-      );
-      setStores(data.content);
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError(mapStoresError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, statusFilter, debouncedSearch]);
-
-  useEffect(() => {
-    setPage(0);
-  }, [debouncedSearch]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+      ),
+    [page, statusFilter, debouncedSearch],
+  );
+  const { data, loading, error, reload, reportError } = useAsyncData(fetchStores, mapStoresError);
+  const stores: StoreResponse[] = data?.content ?? [];
+  const totalPages = data?.totalPages ?? 0;
 
   const onDelete = async (store: StoreResponse) => {
     try {
       await deleteStore(store.id);
       setConfirmDeleteId(null);
-      await load();
+      reload();
     } catch (err) {
-      setError(mapStoresError(err));
+      reportError(mapStoresError(err));
       setConfirmDeleteId(null);
     }
   };
@@ -410,7 +401,7 @@ export const StoresList = () => {
         open={paymentStore != null}
         store={paymentStore}
         onClose={() => setPaymentStore(null)}
-        onSuccess={() => void load()}
+        onSuccess={reload}
       />
 
       <CreateStationModal

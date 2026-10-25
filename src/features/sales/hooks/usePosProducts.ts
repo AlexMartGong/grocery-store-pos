@@ -1,39 +1,22 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { getProducts } from "../../products/api/productsApi";
 import type { ProductResponse } from "../../products/types";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import { mapProductsError } from "../../products/utils/errorMessages";
 
 const POS_PAGE_SIZE = 40;
+const NO_PRODUCTS: ProductResponse[] = [];
 
 export function usePosProducts() {
-  const [products, setProducts] = useState<ProductResponse[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput, 300);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await getProducts(
-        0,
-        POS_PAGE_SIZE,
-        true,
-        debouncedSearch || undefined,
-      );
-      setProducts(res.content);
-    } catch (err) {
-      setError(mapProductsError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [debouncedSearch]);
+  const fetchProducts = useCallback(
+    () => getProducts(0, POS_PAGE_SIZE, true, debouncedSearch || undefined),
+    [debouncedSearch],
+  );
+  const { data, loading, error } = useAsyncData(fetchProducts, mapProductsError);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  return { products, loading, error, searchInput, setSearchInput };
+  return { products: data?.content ?? NO_PRODUCTS, loading, error, searchInput, setSearchInput };
 }

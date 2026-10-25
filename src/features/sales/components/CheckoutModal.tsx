@@ -1,4 +1,4 @@
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useState, type SyntheticEvent } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -66,14 +66,18 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
     closeOnEscape: !submitting,
   });
 
-  useEffect(() => {
-    if (!open) return;
-    setPaymentMethod(null);
-    setAmountPaid("");
-    setIsMixed(false);
-    setSubmitting(false);
-    setError(null);
-  }, [open]);
+  // Fresh checkout every time the modal opens — adjusted during render, not in an effect.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setPaymentMethod(null);
+      setAmountPaid("");
+      setIsMixed(false);
+      setSubmitting(false);
+      setError(null);
+    }
+  }
 
   if (!render) return null;
 

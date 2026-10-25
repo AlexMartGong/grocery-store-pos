@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowDownRight,
@@ -9,6 +9,7 @@ import {
 import { getProductMovements } from "../../inventory/api/inventoryApi";
 import { mapInventoryError } from "../../inventory/utils/errorMessages";
 import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import type { InventoryMovementResponse } from "../../inventory/types";
 
 interface ProductKardexModalProps {
@@ -70,34 +71,24 @@ export const ProductKardexModal = ({
   const titleId = useId();
   const { render, show } = useModalAnimation(isOpen, { onClose });
 
-  const [movements, setMovements] = useState<InventoryMovementResponse[]>([]);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!isOpen || !productId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getProductMovements(productId, page, PAGE_SIZE);
-      setMovements(data.content);
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError(mapInventoryError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [isOpen, productId, page]);
-
-  useEffect(() => {
+  // Another product starts on page 0 — adjusted during render, not in an effect.
+  const [pageProductId, setPageProductId] = useState(productId);
+  if (pageProductId !== productId) {
+    setPageProductId(productId);
     setPage(0);
-  }, [productId]);
+  }
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // A new fetcher per opening, so reopening always shows fresh movements.
+  const fetchMovements = useMemo(
+    () =>
+      isOpen && productId ? () => getProductMovements(productId, page, PAGE_SIZE) : null,
+    [isOpen, productId, page],
+  );
+  const { data, loading, error } = useAsyncData(fetchMovements, mapInventoryError);
+  const movements: InventoryMovementResponse[] = data?.content ?? [];
+  const totalPages = data?.totalPages ?? 0;
 
   if (!render) return null;
 
