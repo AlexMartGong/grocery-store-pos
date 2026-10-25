@@ -12,7 +12,7 @@ POS/SaaS frontend.
 
 | Command         | Purpose                                                              |
 |-----------------|----------------------------------------------------------------------|
-| `pnpm install`  | Install dependencies (Node ≥ 20, **pnpm ≥ 9** required)              |
+| `pnpm install`  | Install dependencies (Node 20.19+, 22.13+ or ≥ 24; **pnpm ≥ 9**)     |
 | `pnpm dev`      | Vite dev server with HMR; `--host` exposes it on the LAN             |
 | `pnpm build`    | `tsc -b && vite build` — strict type-check + production bundle       |
 | `pnpm lint`     | ESLint over the whole repo                                           |
@@ -48,13 +48,13 @@ Senior Frontend Engineer building a multi-tenant POS SPA.
 - **Framework:** React 19 + TypeScript 6 via Vite 8.
 - **Styling:** Tailwind CSS v4 (CSS-first engine, no `tailwind.config.js`).
 - **State:** Zustand 5. **Routing:** React Router DOM v7. **HTTP:** Axios.
-- **Toasts:** `sonner` ^2.0.7 — single `<Toaster richColors position="top-right" />` mounted in
+- **Toasts:** `sonner` ^2.0.8 — single `<Toaster richColors position="top-right" />` mounted in
   `src/App.tsx`. Use `import { toast } from "sonner"` (`toast.success` / `toast.error`) for non-blocking
   feedback. Do not add a second toast library or a second `<Toaster>` instance.
 - **JWT decode:** `jwt-decode` ^4.0.0 — only via helpers in `src/features/auth/utils/token.ts`
   (`decodeToken`, `isExpired`, `toAuthUser`). Never call `jwtDecode` directly elsewhere.
 - **Barcode camera:** `html5-qrcode` 2.3.8 — only via `src/shared/components/scanner/CameraScannerModal.tsx`.
-- **PWA:** `vite-plugin-pwa` ^1.3.0 — `VitePWA` plugin in `vite.config.ts`, `registerType: 'autoUpdate'`
+- **PWA:** `vite-plugin-pwa` ^2.0.0 — `VitePWA` plugin in `vite.config.ts`, `registerType: 'autoUpdate'`
   (cashiers get latest code on reload, no manual step), manifest `display: "standalone"` so the POS
   installs as a native-like app on Windows/Android/iOS. Service worker is **auto-generated** — never
   hand-write SW files. Icons: `logo.svg` (`sizes: 'any'`) plus `pwa-192x192.png` / `pwa-512x512.png`
@@ -508,6 +508,9 @@ Subsequent features MUST reuse these primitives:
   `useEffect` body. Wrap mutations in callbacks (`requestAnimationFrame`, `setTimeout`, `.then`, event
   handlers). For data-loading effects, extract async function via `useCallback` and invoke with
   `useEffect(() => { void load(); }, [load])` — rule allows setState inside the async function.
+  **`eslint-plugin-react-hooks` is held at `~7.0.1`:** 7.1+ also flags setState that runs before the
+  first `await` of an effect-invoked loader (this pattern) and the `setPage(0)` reset effect (31 sites).
+  Migrate those call sites before bumping the plugin — never downgrade the rule to `warn`.
 
 - **Lint compliance — `react-hooks/refs`:** Do **not** read `ref.current` during render. Use `useState`
   updated inside a `requestAnimationFrame` callback in a `useEffect` (see "Caching last prop"). Refs are

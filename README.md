@@ -14,7 +14,7 @@ REST.
 
 ## Requirements
 
-- Node ≥ 20
+- Node 20.19+, 22.13+ or ≥ 24 (required by Vite 8 and ESLint 10)
 - [pnpm](https://pnpm.io/) ≥ 9
 - The `grocery-store` Spring Boot backend running locally on `http://localhost:8080` (or any URL
   exposed via `VITE_API_URL`)
