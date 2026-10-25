@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -15,6 +15,7 @@ import { deleteCustomer, getCustomers } from "../api/customersApi";
 import { mapCustomersError } from "../utils/errorMessages";
 import { useAuthStore } from "../../auth/store/authStore";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import { RegisterPaymentModal } from "./RegisterPaymentModal";
 import type { CustomerResponse } from "../types";
 
@@ -52,53 +53,38 @@ export const CustomersList = () => {
   const navigate = useNavigate();
   const isOwner = useAuthStore((s) => s.user?.role === "OWNER");
 
-  const [customers, setCustomers] = useState<CustomerResponse[]>([]);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("ACTIVE");
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput, 400);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [paymentCustomer, setPaymentCustomer] = useState<CustomerResponse | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const active =
-        activeFilter === "ALL" ? undefined : activeFilter === "ACTIVE";
-      const data = await getCustomers(
-        page,
-        PAGE_SIZE,
-        active,
-        debouncedSearch || undefined,
-      );
-      setCustomers(data.content);
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError(mapCustomersError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, activeFilter, debouncedSearch]);
-
-  useEffect(() => {
+  // A new search sends the list back to page 0 — adjusted during render, not in an effect.
+  const [pageSearch, setPageSearch] = useState(debouncedSearch);
+  if (pageSearch !== debouncedSearch) {
+    setPageSearch(debouncedSearch);
     setPage(0);
-  }, [debouncedSearch]);
+  }
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const fetchCustomers = useCallback(() => {
+    const active = activeFilter === "ALL" ? undefined : activeFilter === "ACTIVE";
+    return getCustomers(page, PAGE_SIZE, active, debouncedSearch || undefined);
+  }, [page, activeFilter, debouncedSearch]);
+  const { data, loading, error, reload, reportError } = useAsyncData(
+    fetchCustomers,
+    mapCustomersError,
+  );
+  const customers: CustomerResponse[] = data?.content ?? [];
+  const totalPages = data?.totalPages ?? 0;
 
   const onDelete = async (customer: CustomerResponse) => {
     try {
       await deleteCustomer(customer.id);
       setConfirmDeleteId(null);
-      await load();
+      reload();
     } catch (err) {
-      setError(mapCustomersError(err));
+      reportError(mapCustomersError(err));
       setConfirmDeleteId(null);
     }
   };
@@ -485,7 +471,7 @@ export const CustomersList = () => {
         isOpen={!!paymentCustomer}
         customer={paymentCustomer}
         onClose={() => setPaymentCustomer(null)}
-        onSuccess={load}
+        onSuccess={reload}
       />
     </div>
   );

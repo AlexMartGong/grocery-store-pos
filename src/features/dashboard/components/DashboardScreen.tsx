@@ -1,38 +1,24 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { LayoutDashboard, RefreshCw } from "lucide-react";
 import { getSalesToday } from "../api/dashboardApi";
 import { mapDashboardError } from "../utils/errorMessages";
-import type { SalesTodayResponse } from "../types";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import { SalesTodayCard } from "./SalesTodayCard";
 import { ProductsToRestockCard } from "./ProductsToRestockCard";
 import { ActivityFeed } from "./ActivityFeed";
 
 export const DashboardScreen = () => {
-  const [salesData, setSalesData] = useState<SalesTodayResponse | null>(null);
-  const [salesLoading, setSalesLoading] = useState(false);
-  const [salesError, setSalesError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
-
-  const loadSales = useCallback(async () => {
-    setSalesLoading(true);
-    setSalesError(null);
-    try {
-      const data = await getSalesToday();
-      setSalesData(data);
-    } catch (err) {
-      setSalesError(mapDashboardError(err));
-    } finally {
-      setSalesLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadSales();
-  }, [loadSales]);
+  const {
+    data: salesData,
+    loading: salesLoading,
+    error: salesError,
+    reload: reloadSales,
+  } = useAsyncData(getSalesToday, mapDashboardError);
 
   const handleSync = () => {
     setRefreshNonce((n) => n + 1);
-    void loadSales();
+    reloadSales();
   };
 
   return (
@@ -60,7 +46,7 @@ export const DashboardScreen = () => {
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            <SalesTodayCard data={salesData} loading={salesLoading} error={salesError} />
+            <SalesTodayCard data={salesData ?? null} loading={salesLoading} error={salesError} />
             <ProductsToRestockCard key={refreshNonce} />
           </div>
           <div className="lg:col-span-1">

@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
 import { getSubscriptionsSummary, getUpcomingBillings } from "../api/subscriptionsApi";
 import { mapSubscriptionsError } from "../utils/errorMessages";
-import type { SubscriptionSummaryResponse, UpcomingBillingResponse } from "../types";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
+import type { UpcomingBillingResponse } from "../types";
+
+const NO_BILLINGS: UpcomingBillingResponse[] = [];
+const fetchOverview = () => Promise.all([getSubscriptionsSummary(), getUpcomingBillings()]);
 
 /**
  * Loads the two reads behind the admin subscriptions screen. They are fetched together because
@@ -9,31 +12,6 @@ import type { SubscriptionSummaryResponse, UpcomingBillingResponse } from "../ty
  * partial refresh would let the two disagree.
  */
 export const useSubscriptionsOverview = () => {
-  const [summary, setSummary] = useState<SubscriptionSummaryResponse | null>(null);
-  const [billings, setBillings] = useState<UpcomingBillingResponse[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [summaryData, billingsData] = await Promise.all([
-        getSubscriptionsSummary(),
-        getUpcomingBillings(),
-      ]);
-      setSummary(summaryData);
-      setBillings(billingsData);
-    } catch (err) {
-      setError(mapSubscriptionsError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  return { summary, billings, loading, error, reload: load };
+  const { data, loading, error, reload } = useAsyncData(fetchOverview, mapSubscriptionsError);
+  return { summary: data?.[0] ?? null, billings: data?.[1] ?? NO_BILLINGS, loading, error, reload };
 };

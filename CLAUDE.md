@@ -162,6 +162,7 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 - **Product images** — "Product images (upload + thumbnails)".
 - **Notifications, inventory, credit payments** — short sub-sections near the end.
 - **Agent printer settings** — "Agent printer settings — multi-station".
+- **Data loading** — "Async data shared hook" (every read on mount / input change goes through it).
 - **Lint compliance** — "Lint compliance — `react-hooks/set-state-in-effect`" and "`react-hooks/refs`".
 
 Subsequent features MUST reuse these primitives:
@@ -291,11 +292,30 @@ Subsequent features MUST reuse these primitives:
 - **Debounce shared hook:** `src/shared/hooks/useDebounce.ts` exports
   `useDebounce<T>(value: T, delay: number): T`. Use for any debounced input. Do **not** inline
   `setTimeout` + `clearTimeout` per feature.
+- **Async data shared hook:** `src/shared/hooks/useAsyncData.ts` exports
+  `useAsyncData<T>(fetcher: (() => Promise<T>) | null, mapError)` →
+  `{ data, loading, error, reload, reportError }`. **Every** read that runs on mount or when its inputs
+  change goes through it — never hand-roll `useState` loading/error + `useEffect(() => { void load(); })`.
+  The fetcher's identity is the request key: build it with `useCallback` over the request params
+  (lists), `useMemo(() => (id ? () => getXById(id) : null), [id])` for optional/detail reads (`null`
+  skips the fetch), or a module-level function for parameterless reads. **An unmemoized inline fetcher
+  refetches every render and no lint catches it.** `mapError` is the feature's `mapXxxError`.
+  Semantics: `loading` is derived (starts `true`, so no empty-state flash before the first fetch); a
+  response from a superseded fetcher is dropped, so a slow old search never overwrites a newer one;
+  `data` keeps the last settled value while the next request runs and after it fails (lists and the
+  POS catalog rely on this) — gate on `!loading && !error` wherever a stale value would mislead
+  (`useStoreSubscription`, `CloseShiftModal` preview, `SalesList` customer chip). `reload()` refetches after a mutation (replaces `await load()`).
+  `reportError(message)` shows an action's failure (delete, open detail) through the same `error` and is
+  dropped when the next fetch starts — no separate `actionError` state. Hooks that return
+  `data?.content ?? []` to other components use a module-level empty array (`NO_PRODUCTS`) so the
+  fallback keeps a stable identity. References: `UsersList.tsx`, `SalesList.tsx`, `usePosProducts.ts`.
 - **List search pattern (remote vs local):** Paginated server-side lists (Stores, Products, Customers) use
   **remote** search — debounce input via `useDebounce(searchInput, 400)`, pass `debouncedSearch ||
   undefined` as optional `search?: string` to API method (forwarded as `search` query param), add
-  `debouncedSearch` to `useCallback` deps of `load`. Reset to page 0 with dedicated
-  `useEffect(() => { setPage(0); }, [debouncedSearch])` so a query never lands out-of-range.
+  `debouncedSearch` to the `useCallback` deps of the `useAsyncData` fetcher. Reset to page 0 **during
+  render** when `debouncedSearch` changes (`pageSearch` state, see "Lint compliance —
+  `react-hooks/set-state-in-effect`") so a query never lands out-of-range and page N of a new query is
+  never requested.
   Small/per-tenant lists (Users) use **local** filter — plain `useState`, no debounce, derive
   `filteredUsers` before `return`, swap **both** `users.map` calls AND empty-state `length === 0` checks
   to filtered array. UI: relative wrapper with absolute `Search` icon (`aria-hidden`),
@@ -380,9 +400,9 @@ Subsequent features MUST reuse these primitives:
       `bg-indigo-600 text-white hover:bg-indigo-700`. "Limpiar": `bg-rose-100 text-rose-700`.
     - **POS data hooks:** `src/features/sales/hooks/usePosProducts.ts` (debounced 300 ms search,
       page-size 40, active-only) and `usePosCustomers.ts` (single fetch active customers, dropdown
-      filtered locally). Both wrap async `load` in `useCallback` and call via
-      `useEffect(() => { void load(); }, [load])` to satisfy `react-hooks/set-state-in-effect`. Reuse
-      instead of inlining `getProducts` / `getCustomers` in POS components.
+      filtered locally). Both load through `useAsyncData` (products: `useCallback` fetcher over
+      `debouncedSearch`; customers: module-level fetcher) and fall back to module-level empty arrays.
+      Reuse instead of inlining `getProducts` / `getCustomers` in POS components.
     - **POS formatters:** `src/features/sales/utils/format.ts` exports `formatMoney`, `getInitials`,
       `pastelColorFromId` (deterministic UUID → tailwind class), `formatSaleId` (8-char uppercase prefix),
       `formatSaleDate` (epoch-safe — falls back to `new Date()` when null/invalid/pre-1970). Never call
@@ -417,8 +437,9 @@ Subsequent features MUST reuse these primitives:
       (ISO date strings). `SalesList.tsx` reads them from URL params via `useSearchParams` so links are
       shareable. Deep-link `/pos/sales-history?customerId=<id>` from `CustomersList` filters the history
       by customer and renders a removable chip that clears the param via `setSearchParams(next)`. Search
-      input uses `useDebounce(searchInput, 400)` + a dedicated `useEffect(() => setPage(0), [filters])`
-      reset. Reuse this pattern for future filters — never add a filter the backend silently ignores.
+      input uses `useDebounce(searchInput, 400)`; any filter change resets the page during render via a
+      `filterKey` (all filters joined with `|`) compared against `pageFilterKey` state. New filters join
+      `filterKey` and the fetcher deps — never add a filter the backend silently ignores.
     - **On-demand product name resolution:** `openSale(sale)` calls
       `Promise.all(uniqueProductIds.map(id => getProductById(id).catch(() => null)))`, builds
       `CartItem[]`, passes to `SaleSummaryModal`. Individual 404s fall back to name `"Producto"` so they
@@ -506,15 +527,26 @@ Subsequent features MUST reuse these primitives:
   container toggles `pointer-events-auto`/`pointer-events-none` and `aria-hidden={!open}`. Reference:
   `src/features/sales/components/PosScreen.tsx`.
 
-- **Lint compliance — `react-hooks/set-state-in-effect`:** Never call `setState` synchronously in a
-  `useEffect` body. Wrap mutations in callbacks (`requestAnimationFrame`, `setTimeout`, `.then`, event
-  handlers). For data-loading effects, extract async function via `useCallback` and invoke with
-  `useEffect(() => { void load(); }, [load])` — rule allows setState inside the async function.
-  **`eslint-plugin-react-hooks` is held at `~7.0.1`:** 7.1+ also flags setState that runs before the
-  first `await` of an effect-invoked loader (this pattern) and the `setPage(0)` reset effect (31 sites).
-  Migrate those call sites before bumping the plugin — never downgrade the rule to `warn`. 7.0.1's peer
-  range stops at ESLint 9, so `pnpm-workspace.yaml` allows ESLint 10 for it via `peerDependencyRules`
-  (its rules all fire on 10) — delete that entry in the same change that bumps the plugin.
+- **Lint compliance — `react-hooks/set-state-in-effect`** (`eslint-plugin-react-hooks` ^7.1): Never call
+  `setState` synchronously in a `useEffect` body. 7.1 follows calls into functions, so a loader that runs
+  `setLoading(true)` before its first `await` counts too. Never downgrade the rule or disable it per line.
+  Pick by case:
+    - **Loading data** → `useAsyncData` (see "Async data shared hook").
+    - **Adjusting state when an input changes** (page reset on filter change, fresh modal form on open,
+      seeding an edit form from fetched data) → keep the previous value in state and update during
+      render, React's "adjusting some state when a prop changes" pattern:
+      ```tsx
+      const [wasOpen, setWasOpen] = useState(isOpen);
+      if (isOpen !== wasOpen) {
+        setWasOpen(isOpen);
+        if (isOpen) { setAmount(""); setError(null); }
+      }
+      ```
+      Always guard on a changed value — an unconditional setState during render loops. References:
+      `SalesList.tsx` (page reset), `RegisterPaymentModal.tsx` (reset on open), `ProductForm.tsx` (seed
+      form once per fetched product, `seededFrom` state).
+    - **Timers, animation, subscriptions** → setState inside the callback (`requestAnimationFrame`,
+      `setTimeout`, `.then`, event handlers), as in the modal animation pattern.
 
 - **Lint compliance — `react-hooks/refs`:** Do **not** read `ref.current` during render. Use `useState`
   updated inside a `requestAnimationFrame` callback in a `useEffect` (see "Caching last prop"). Refs are

@@ -1,7 +1,7 @@
 import {
-  useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type RefObject,
@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import { formatMoney } from "../../sales/utils/format";
 import { useCashShiftStore } from "../store/cashShiftStore";
 import { getShiftPreview } from "../api/cashApi";
@@ -38,9 +39,14 @@ export const CloseShiftModal = ({ open, onClose }: Props) => {
   const [notes, setNotes] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [preview, setPreview] = useState<CashShiftResponse | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  // A fresh fetcher per opening, so the expected balance is never one from an earlier open.
+  const fetchPreview = useMemo(() => (open ? () => getShiftPreview() : null), [open]);
+  const {
+    data: previewData,
+    loading: previewLoading,
+    error: previewError,
+  } = useAsyncData(fetchPreview, mapCashShiftError);
+  const preview = previewLoading || previewError ? null : (previewData ?? null);
 
   const currentShift = useCashShiftStore((s) => s.currentShift);
   const closeAction = useCashShiftStore((s) => s.close);
@@ -68,24 +74,6 @@ export const CloseShiftModal = ({ open, onClose }: Props) => {
       return () => clearTimeout(t);
     }
   }, [open, clearError]);
-
-  const loadPreview = useCallback(async () => {
-    setPreviewLoading(true);
-    setPreviewError(null);
-    setPreview(null);
-    try {
-      const data = await getShiftPreview();
-      setPreview(data);
-    } catch (err) {
-      setPreviewError(mapCashShiftError(err));
-    } finally {
-      setPreviewLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (open) void loadPreview();
-  }, [open, loadPreview]);
 
   useEffect(() => {
     if (render && step === "form") {

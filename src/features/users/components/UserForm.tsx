@@ -1,9 +1,10 @@
 import axios from "axios";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useMemo, useState, type SyntheticEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AlertCircle, ArrowLeft, Save, UserPlus } from "lucide-react";
 import { createUser, getUserById, updateUser } from "../api/usersApi";
 import { mapUsersError } from "../utils/errorMessages";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import type { ApiErrorResponse } from "../../auth/types";
 import type { UserRole } from "../types";
 
@@ -36,36 +37,20 @@ export const UserForm = () => {
   const isEdit = Boolean(id);
 
   const [form, setForm] = useState<FormState>(INITIAL);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (!isEdit || !id) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    void (async () => {
-      try {
-        const user = await getUserById(id);
-        if (cancelled) return;
-        setForm({
-          username: user.username,
-          password: "",
-          fullName: user.fullName,
-          role: user.role,
-        });
-      } catch (err) {
-        if (!cancelled) setError(mapUsersError(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, isEdit]);
+  const fetchUser = useMemo(() => (id ? () => getUserById(id) : null), [id]);
+  const { data: user, loading, error: loadError } = useAsyncData(fetchUser, mapUsersError);
+  const error = submitError ?? loadError;
+
+  // Seed the editable form once per fetched user.
+  const [seededFrom, setSeededFrom] = useState(user);
+  if (user && user !== seededFrom) {
+    setSeededFrom(user);
+    setForm({ username: user.username, password: "", fullName: user.fullName, role: user.role });
+  }
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -73,7 +58,7 @@ export const UserForm = () => {
   const onSubmit = async (e: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     e.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setSubmitError(null);
     setFieldErrors({});
     try {
       if (isEdit && id) {
@@ -91,7 +76,7 @@ export const UserForm = () => {
       if (axios.isAxiosError<ApiErrorResponse>(err) && err.response?.data?.fields) {
         setFieldErrors(err.response.data.fields);
       }
-      setError(mapUsersError(err));
+      setSubmitError(mapUsersError(err));
     } finally {
       setSubmitting(false);
     }

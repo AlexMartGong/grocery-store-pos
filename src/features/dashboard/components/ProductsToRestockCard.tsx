@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { AlertCircle, AlertTriangle, Loader2, PackageX } from "lucide-react";
 import { getProductsToRestock } from "../api/dashboardApi";
 import { mapDashboardError } from "../utils/errorMessages";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import type { ProductToRestockResponse } from "../types";
 
 const PAGE_SIZE = 5;
@@ -38,29 +39,12 @@ const formatStock = (value: string) => {
 // The parent remounts this widget via a changing `key` to force a refresh
 // (e.g. the dashboard "Sincronizar" button), so no refresh prop is needed here.
 export const ProductsToRestockCard = () => {
-  const [items, setItems] = useState<ProductToRestockResponse[]>([]);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getProductsToRestock(page, PAGE_SIZE);
-      setItems(data.content);
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError(mapDashboardError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const fetchItems = useCallback(() => getProductsToRestock(page, PAGE_SIZE), [page]);
+  const { data, loading, error } = useAsyncData(fetchItems, mapDashboardError);
+  const items: ProductToRestockResponse[] = data?.content ?? [];
+  const totalPages = data?.totalPages ?? 0;
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">

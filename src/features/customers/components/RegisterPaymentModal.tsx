@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type SyntheticEvent } from "react";
+import { useId, useState, type SyntheticEvent } from "react";
 import { AlertCircle, Loader2, Wallet } from "lucide-react";
 import axios from "axios";
 import { Modal } from "../../../shared/components/ui/Modal";
@@ -43,13 +43,17 @@ export const RegisterPaymentModal = ({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (!isOpen) return;
-    setAmount("");
-    setSubmitting(false);
-    setError(null);
-    setFieldErrors({});
-  }, [isOpen]);
+  // Fresh form every time the modal opens — adjusted during render, not in an effect.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setAmount("");
+      setSubmitting(false);
+      setError(null);
+      setFieldErrors({});
+    }
+  }
 
   if (!customer) return null;
 

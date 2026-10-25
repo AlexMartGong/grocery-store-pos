@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useState, type SyntheticEvent } from "react";
 import { AlertCircle, ArrowDownToLine, ArrowUpFromLine, PackagePlus } from "lucide-react";
 import { Modal } from "../../../shared/components/ui/Modal";
 import { adjustStock } from "../../inventory/api/inventoryApi";
@@ -37,15 +37,19 @@ export const AdjustStockModal = ({ isOpen, product, onClose, onSaved }: AdjustSt
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (!product) return;
-    setQuantity("");
-    setReason("RESTOCK");
-    setAdjustmentType("IN");
-    setNotes("");
-    setError(null);
-    setFieldErrors({});
-  }, [product]);
+  // Fresh form for each product passed in — adjusted during render, not in an effect.
+  const [formProduct, setFormProduct] = useState(product);
+  if (product !== formProduct) {
+    setFormProduct(product);
+    if (product) {
+      setQuantity("");
+      setReason("RESTOCK");
+      setAdjustmentType("IN");
+      setNotes("");
+      setError(null);
+      setFieldErrors({});
+    }
+  }
 
   const isOutflow =
     reason === "LOSS" || (reason === "ADJUSTMENT" && adjustmentType === "OUT");

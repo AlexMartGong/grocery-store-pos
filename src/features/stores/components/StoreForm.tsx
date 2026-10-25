@@ -1,9 +1,10 @@
 import axios from "axios";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useMemo, useState, type SyntheticEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AlertCircle, ArrowLeft, Save, Store as StoreIcon } from "lucide-react";
 import { createStore, getStoreById, updateStore } from "../api/storesApi";
 import { mapStoresError } from "../utils/errorMessages";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import type { AdminNotificationChannel, StoreStatus } from "../types";
 import type { ApiErrorResponse } from "../../auth/types";
 
@@ -44,31 +45,29 @@ export const StoreForm = () => {
   const isEdit = Boolean(id);
 
   const [form, setForm] = useState<FormState>(INITIAL);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    getStoreById(id)
-      .then((s) =>
-        setForm({
-          code: s.code,
-          name: s.name,
-          ownerName: s.ownerName ?? "",
-          whatsapp: s.whatsapp ?? "",
-          telegramChatId: s.telegramChatId ?? "",
-          preferredAdminChannel: s.preferredAdminChannel ?? "WHATSAPP",
-          address: s.address ?? "",
-          status: s.status,
-        }),
-      )
-      .catch((err) => setError(mapStoresError(err)))
-      .finally(() => setLoading(false));
-  }, [id]);
+  const fetchStore = useMemo(() => (id ? () => getStoreById(id) : null), [id]);
+  const { data: store, loading, error: loadError } = useAsyncData(fetchStore, mapStoresError);
+  const error = submitError ?? loadError;
+
+  // Seed the editable form once per fetched store — adjusted during render, not in an effect.
+  const [seededFrom, setSeededFrom] = useState(store);
+  if (store && store !== seededFrom) {
+    setSeededFrom(store);
+    setForm({
+      code: store.code,
+      name: store.name,
+      ownerName: store.ownerName ?? "",
+      whatsapp: store.whatsapp ?? "",
+      telegramChatId: store.telegramChatId ?? "",
+      preferredAdminChannel: store.preferredAdminChannel ?? "WHATSAPP",
+      address: store.address ?? "",
+      status: store.status,
+    });
+  }
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -76,7 +75,7 @@ export const StoreForm = () => {
   const onSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setSubmitError(null);
     setFieldErrors({});
     try {
       if (isEdit && id) {
@@ -105,7 +104,7 @@ export const StoreForm = () => {
       if (axios.isAxiosError<ApiErrorResponse>(err) && err.response?.data?.fields) {
         setFieldErrors(err.response.data.fields);
       }
-      setError(mapStoresError(err));
+      setSubmitError(mapStoresError(err));
     } finally {
       setSubmitting(false);
     }

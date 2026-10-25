@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -15,6 +15,7 @@ import { deleteProduct, getProducts } from "../api/productsApi";
 import { mapProductsError } from "../utils/errorMessages";
 import { useAuthStore } from "../../auth/store/authStore";
 import { useDebounce } from "../../../shared/hooks/useDebounce";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import { ProductImage } from "../../../shared/components/ui/ProductImage";
 import { QuickPriceModal } from "./QuickPriceModal";
 import { AdjustStockModal } from "./AdjustStockModal";
@@ -79,55 +80,40 @@ export const ProductsList = () => {
   const navigate = useNavigate();
   const isOwner = useAuthStore((s) => s.user?.role === "OWNER");
 
-  const [products, setProducts] = useState<ProductResponse[]>([]);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("ACTIVE");
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput, 400);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [priceModalProduct, setPriceModalProduct] = useState<ProductResponse | null>(null);
   const [stockModalProduct, setStockModalProduct] = useState<ProductResponse | null>(null);
   const [kardexProduct, setKardexProduct] = useState<ProductResponse | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const active =
-        activeFilter === "ALL" ? undefined : activeFilter === "ACTIVE";
-      const data = await getProducts(
-        page,
-        PAGE_SIZE,
-        active,
-        debouncedSearch || undefined,
-      );
-      setProducts(data.content);
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError(mapProductsError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, activeFilter, debouncedSearch]);
-
-  useEffect(() => {
+  // A new search sends the list back to page 0 — adjusted during render, not in an effect.
+  const [pageSearch, setPageSearch] = useState(debouncedSearch);
+  if (pageSearch !== debouncedSearch) {
+    setPageSearch(debouncedSearch);
     setPage(0);
-  }, [debouncedSearch]);
+  }
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const fetchProducts = useCallback(() => {
+    const active = activeFilter === "ALL" ? undefined : activeFilter === "ACTIVE";
+    return getProducts(page, PAGE_SIZE, active, debouncedSearch || undefined);
+  }, [page, activeFilter, debouncedSearch]);
+  const { data, loading, error, reload, reportError } = useAsyncData(
+    fetchProducts,
+    mapProductsError,
+  );
+  const products: ProductResponse[] = data?.content ?? [];
+  const totalPages = data?.totalPages ?? 0;
 
   const onDelete = async (product: ProductResponse) => {
     try {
       await deleteProduct(product.id);
       setConfirmDeleteId(null);
-      await load();
+      reload();
     } catch (err) {
-      setError(mapProductsError(err));
+      reportError(mapProductsError(err));
       setConfirmDeleteId(null);
     }
   };
@@ -506,13 +492,13 @@ export const ProductsList = () => {
         isOpen={priceModalProduct !== null}
         product={priceModalProduct}
         onClose={() => setPriceModalProduct(null)}
-        onSaved={() => void load()}
+        onSaved={reload}
       />
       <AdjustStockModal
         isOpen={stockModalProduct !== null}
         product={stockModalProduct}
         onClose={() => setStockModalProduct(null)}
-        onSaved={() => void load()}
+        onSaved={reload}
       />
       <ProductKardexModal
         isOpen={kardexProduct !== null}

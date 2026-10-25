@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useEffect, useRef, useState, type ChangeEvent, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type SyntheticEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -24,6 +24,7 @@ import {
 import { mapProductsError, PRODUCTS_ERROR_MESSAGES } from "../utils/errorMessages";
 import { CameraScannerModal } from "../../../shared/components/scanner/CameraScannerModal";
 import { ProductImage } from "../../../shared/components/ui/ProductImage";
+import { useAsyncData } from "../../../shared/hooks/useAsyncData";
 import { playBeep, vibrate } from "../../../shared/utils/feedback";
 import { compressAndConvertToWebP } from "../../../shared/utils/imageOptimizer";
 import type { ApiErrorResponse } from "../../auth/types";
@@ -70,9 +71,8 @@ export const ProductForm = () => {
   const isEdit = Boolean(id);
 
   const [form, setForm] = useState<FormState>(INITIAL);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [scannerOpen, setScannerOpen] = useState(false);
   const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
@@ -81,6 +81,26 @@ export const ProductForm = () => {
   const [confirmDeleteImage, setConfirmDeleteImage] = useState(false);
   const barcodeRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchProduct = useMemo(() => (id ? () => getProductById(id) : null), [id]);
+  const { data: product, loading, error: loadError } = useAsyncData(fetchProduct, mapProductsError);
+  const error = submitError ?? loadError;
+
+  // Seed the editable form once per fetched product — adjusted during render, not in an effect.
+  const [seededFrom, setSeededFrom] = useState(product);
+  if (product && product !== seededFrom) {
+    setSeededFrom(product);
+    setForm({
+      barcode: product.barcode ?? "",
+      name: product.name,
+      purchase_cost: product.purchase_cost,
+      sale_price: product.sale_price,
+      current_stock: product.current_stock,
+      minimum_stock: product.minimum_stock,
+      unit_of_measure: product.unit_of_measure,
+    });
+    setImageUrl(product.image_url ?? null);
+  }
 
   useEffect(() => {
     if (isEdit || loading) return;
@@ -116,36 +136,6 @@ export const ProductForm = () => {
     playBeep();
     void checkBarcodeOwnership(trimmed);
   };
-
-  useEffect(() => {
-    if (!isEdit || !id) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    void (async () => {
-      try {
-        const product = await getProductById(id);
-        if (cancelled) return;
-        setForm({
-          barcode: product.barcode ?? "",
-          name: product.name,
-          purchase_cost: product.purchase_cost,
-          sale_price: product.sale_price,
-          current_stock: product.current_stock,
-          minimum_stock: product.minimum_stock,
-          unit_of_measure: product.unit_of_measure,
-        });
-        setImageUrl(product.image_url ?? null);
-      } catch (err) {
-        if (!cancelled) setError(mapProductsError(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, isEdit]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -197,7 +187,7 @@ export const ProductForm = () => {
   const onSubmit = async (e: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     e.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setSubmitError(null);
     setFieldErrors({});
     const payload = {
       ...(form.barcode.trim() ? { barcode: form.barcode.trim() } : {}),
@@ -219,7 +209,7 @@ export const ProductForm = () => {
       if (axios.isAxiosError<ApiErrorResponse>(err) && err.response?.data?.fields) {
         setFieldErrors(err.response.data.fields);
       }
-      setError(mapProductsError(err));
+      setSubmitError(mapProductsError(err));
     } finally {
       setSubmitting(false);
     }
