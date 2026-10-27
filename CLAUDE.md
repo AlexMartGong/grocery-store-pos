@@ -61,7 +61,9 @@ Senior Frontend Engineer building a multi-tenant POS SPA.
   installs as a native-like app on Windows/Android/iOS. Service worker is **auto-generated** — never
   hand-write SW files. Icons: `logo.svg` (`sizes: 'any'`) plus `pwa-192x192.png` / `pwa-512x512.png`
   (PNGs added to `public/` manually). PWA `<head>` meta (`theme-color #0f172a`, `apple-touch-icon`) lives
-  in `index.html`.
+  in `index.html`. So do the link-preview tags (`description`, Open Graph `og:*`, `twitter:card`) pointing
+  at `public/og-image.png` (1200×627 PNG, absolute `https://ventacore.app/` URLs): LinkedIn/WhatsApp
+  crawlers don't run JS, so never move them into React or make them relative.
 - **Backend:** Spring Boot 4.0 (Java 21) REST API, JWT auth, RBAC (Store Users vs SaaS Admins),
   ProblemDetails/ErrorResponse error structures.
 - Two auth flows: `OWNER`/`CASHIER` vs `SUPER_ADMIN`. Highly responsive POS UI.
