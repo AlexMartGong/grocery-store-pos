@@ -64,8 +64,9 @@ export const StoreLayout = () => {
         loadProfile();
     }, [loadProfile]);
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        // Await: until the session is cleared, StoreLogin would bounce /login back to /pos.
+        await logout();
         navigate("/login", { replace: true });
     };
 

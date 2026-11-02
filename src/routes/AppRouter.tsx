@@ -9,6 +9,7 @@ import { PosScreen } from "../features/sales/components/PosScreen";
 import { AdminGuard } from "./guards/AdminGuard";
 import { StoreGuard } from "./guards/StoreGuard";
 import { OwnerGuard } from "./guards/OwnerGuard";
+import { HomeRedirect } from "./HomeRedirect";
 
 // Lazy route pages — keep logins, guards, layouts and PosScreen (the cashier's
 // landing) eager for first paint; everything else loads on demand so store
@@ -134,8 +135,8 @@ const router = createBrowserRouter([
       },
     ],
   },
-  { path: "/", element: <Navigate to="/login" replace /> },
-  { path: "*", element: <Navigate to="/login" replace /> },
+  { path: "/", element: <HomeRedirect /> },
+  { path: "*", element: <HomeRedirect /> },
 ]);
 
 export const AppRouter = () => <RouterProvider router={router} />;

@@ -27,6 +27,16 @@ export function isExpired(decoded: DecodedToken): boolean {
   return decoded.exp * 1000 < Date.now();
 }
 
+/** Milliseconds until `exp` (negative once expired). */
+export function msUntilExpiry(decoded: DecodedToken): number {
+  return decoded.exp * 1000 - Date.now();
+}
+
+/** Store users (OWNER/CASHIER) hold a refresh cookie; SUPER_ADMIN does not. */
+export function isStoreRole(role: UserRole | undefined): role is "OWNER" | "CASHIER" {
+  return role === "OWNER" || role === "CASHIER";
+}
+
 export function toAuthUser(decoded: DecodedToken, username: string): AuthUser {
   return {
     role: decoded.role,

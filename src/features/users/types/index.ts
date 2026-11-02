@@ -18,9 +18,10 @@ export interface CreateUserRequest {
   role: UserRole;
 }
 
-// Backend also accepts optional `password` and `active`; intentionally omitted.
-// Password reset and deactivation belong to dedicated flows.
+// Backend also accepts optional `active`; intentionally omitted (deactivation = DELETE).
+// Sending `password` changes it and revokes every session (refresh token) of that user.
 export interface UpdateUserRequest {
   fullName: string;
   role: UserRole;
+  password?: string;
 }

@@ -1,18 +1,28 @@
 import { useState, type SyntheticEvent, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { AlertCircle, Lock, Store, User } from "lucide-react";
 import { useStoreLogin } from "../hooks/useLogin";
+import { useAuthStore } from "../store/authStore";
+import { isStoreRole } from "../utils/token";
+import { SessionRestoreScreen } from "./SessionRestoreScreen";
 
 export const StoreLogin = () => {
   const { submit, loading, error } = useStoreLogin();
   const [storeCode, setStoreCode] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const isRestoring = useAuthStore((s) => s.isRestoring);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const role = useAuthStore((s) => s.user?.role);
 
   const onSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     void submit({ storeCode, username, password });
   };
+
+  // A live (or restoring) store session never sees the login form.
+  if (isRestoring) return <SessionRestoreScreen />;
+  if (isAuthenticated && isStoreRole(role)) return <Navigate to="/pos" replace />;
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-8">
