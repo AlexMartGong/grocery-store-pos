@@ -6,6 +6,11 @@ export const AUTH_ERROR_MESSAGES: Record<string, string> = {
   store_inactive:
     "El acceso a esta tienda se encuentra suspendido. Por favor, comunícate con el administrador para restablecer el servicio.",
   store_not_found: "Tienda no encontrada. Verifica el código de la tienda.",
+  user_inactive:
+    "Tu usuario fue desactivado. Comunícate con el propietario de la tienda.",
+  invalid_refresh_token: "Tu sesión expiró. Inicia sesión de nuevo.",
+  refresh_token_reused:
+    "Por seguridad cerramos tu sesión porque se detectó un uso inusual. Inicia sesión de nuevo.",
   validation_failed: "Revisa los campos marcados e intenta de nuevo.",
   conflict: "La solicitud entra en conflicto con el estado actual.",
 };

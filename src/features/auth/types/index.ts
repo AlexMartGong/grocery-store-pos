@@ -41,3 +41,9 @@ export interface AuthUser {
   userId?: string;
   adminId?: string;
 }
+
+/**
+ * Result of a store-session refresh: `rejected` = backend refused it (401) and the session was
+ * logged out; `unavailable` = transient failure (network, 5xx, 429) — session kept, retry later.
+ */
+export type RefreshOutcome = "refreshed" | "rejected" | "unavailable";

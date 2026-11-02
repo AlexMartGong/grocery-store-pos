@@ -124,7 +124,7 @@ export const OpenShiftModal = ({ open }: Props) => {
 
           <button
             type="button"
-            onClick={logout}
+            onClick={() => void logout()}
             className="mt-2 w-full text-center text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 focus-visible:outline-none focus-visible:underline"
           >
             Cerrar sesión

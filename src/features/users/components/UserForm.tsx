@@ -1,19 +1,13 @@
-import axios from "axios";
 import { useMemo, useState, type SyntheticEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AlertCircle, ArrowLeft, Save, UserPlus } from "lucide-react";
-import { createUser, getUserById, updateUser } from "../api/usersApi";
+import { getUserById } from "../api/usersApi";
+import { useUserFormSubmit, type UserFormValues } from "../hooks/useUserFormSubmit";
 import { mapUsersError } from "../utils/errorMessages";
 import { useAsyncData } from "../../../shared/hooks/useAsyncData";
-import type { ApiErrorResponse } from "../../auth/types";
 import type { UserRole } from "../types";
 
-interface FormState {
-  username: string;
-  password: string;
-  fullName: string;
-  role: UserRole;
-}
+type FormState = UserFormValues;
 
 const INITIAL: FormState = {
   username: "",
@@ -37,9 +31,7 @@ export const UserForm = () => {
   const isEdit = Boolean(id);
 
   const [form, setForm] = useState<FormState>(INITIAL);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { submit, submitting, submitError, fieldErrors } = useUserFormSubmit(id);
 
   const fetchUser = useMemo(() => (id ? () => getUserById(id) : null), [id]);
   const { data: user, loading, error: loadError } = useAsyncData(fetchUser, mapUsersError);
@@ -55,31 +47,9 @@ export const UserForm = () => {
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const onSubmit = async (e: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
+  const onSubmit = (e: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     e.preventDefault();
-    setSubmitting(true);
-    setSubmitError(null);
-    setFieldErrors({});
-    try {
-      if (isEdit && id) {
-        await updateUser(id, { fullName: form.fullName, role: form.role });
-      } else {
-        await createUser({
-          username: form.username,
-          password: form.password,
-          fullName: form.fullName,
-          role: form.role,
-        });
-      }
-      navigate("/pos/users");
-    } catch (err) {
-      if (axios.isAxiosError<ApiErrorResponse>(err) && err.response?.data?.fields) {
-        setFieldErrors(err.response.data.fields);
-      }
-      setSubmitError(mapUsersError(err));
-    } finally {
-      setSubmitting(false);
-    }
+    void submit(form);
   };
 
   return (
@@ -103,7 +73,7 @@ export const UserForm = () => {
             </h1>
             <p className="text-sm text-slate-500">
               {isEdit
-                ? "Actualiza el nombre o el rol. El usuario no puede cambiarse."
+                ? "Actualiza el nombre, el rol o la contraseña. El usuario no puede cambiarse."
                 : "Crea un nuevo cajero o propietario para esta tienda."}
             </p>
           </header>
@@ -152,30 +122,32 @@ export const UserForm = () => {
                 )}
               </div>
 
-              {!isEdit && (
-                <div className="space-y-1.5">
-                  <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-                    Contraseña
-                  </label>
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    value={form.password}
-                    onChange={(e) => set("password", e.target.value)}
-                    required
-                    minLength={8}
-                    maxLength={100}
-                    autoComplete="new-password"
-                    className={inputClass(Boolean(fieldErrors.password))}
-                  />
-                  {fieldErrors.password ? (
-                    <p className="text-rose-500 text-sm mt-1">{fieldErrors.password}</p>
-                  ) : (
-                    <p className="text-xs text-slate-500">Al menos 8 caracteres.</p>
-                  )}
-                </div>
-              )}
+              <div className="space-y-1.5">
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700">
+                  {isEdit ? "Nueva contraseña (opcional)" : "Contraseña"}
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => set("password", e.target.value)}
+                  required={!isEdit}
+                  minLength={8}
+                  maxLength={100}
+                  autoComplete="new-password"
+                  className={inputClass(Boolean(fieldErrors.password))}
+                />
+                {fieldErrors.password ? (
+                  <p className="text-rose-500 text-sm mt-1">{fieldErrors.password}</p>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    {isEdit
+                      ? "Déjalo vacío para conservarla. Cambiarla cierra todas las sesiones de este usuario."
+                      : "Al menos 8 caracteres."}
+                  </p>
+                )}
+              </div>
 
               <div className="space-y-1.5">
                 <label htmlFor="fullName" className="block text-sm font-medium text-slate-700">

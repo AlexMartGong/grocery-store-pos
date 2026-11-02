@@ -29,6 +29,12 @@ a same-day release — wait out the window.
 **Environment.** Copy `.env.example` → `.env`; only var is `VITE_API_URL` (default `http://localhost:8080`).
 The `/api/v1` prefix is appended by `apiClient` — do not include it in the env value or feature paths.
 
+**Refresh cookie in dev.** Store sessions rely on the httpOnly `refresh_token` cookie (see "Persistent
+store sessions"). `http://localhost:5173` → `http://localhost:8080` works (localhost is a secure
+context). From the LAN over plain http (`pnpm dev --host`, `http://192.168.x.x:5173`) the backend needs
+`REFRESH_COOKIE_SECURE=false`, or the browser drops the `Secure` cookie. `https://localhost:5174` →
+`http://localhost:8080` does **not** work: schemeful cross-site, the `SameSite=Lax` cookie is never sent.
+
 ## Quick orientation (read first)
 
 Feature-driven React SPA. Two auth flows backed by separate endpoints (`/auth/login` store users →
@@ -38,7 +44,8 @@ skeleton: `api/`, `components/`, `hooks/`, `store/`, `types/`, `utils/`. Cross-f
 Zustand stores (`useAuthStore`, `usePosStore`, `useCashShiftStore`, `useNotificationStore`,
 `useSettingsStore`); each exposes `reset()` and `authStore.logout` chains them so a user-switch or
 silent 401 wipes everything. All HTTP goes through `src/shared/api/api.ts` (`apiClient`) —
-interceptors attach the JWT and turn `401` into a silent global logout. Cash shifts gate every
+interceptors attach the JWT; a store-user `401` triggers one shared `/auth/refresh` + retry (refresh
+cookie, see "Persistent store sessions"), a SUPER_ADMIN `401` a silent global logout. Cash shifts gate every
 `/pos/*` route via a mandatory `OpenShiftModal`. Tailwind v4 (no config file); all custom CSS lives
 in `src/index.css`. No test runner — verify with `pnpm lint && pnpm build` plus manual checks via
 `pnpm dev`. Detailed conventions for every feature module live in §3 below; use the wayfinding map
@@ -85,8 +92,12 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 - **Local vs Global:** Prefer `useState`/`useReducer`. Zustand only for shared state (POS Cart, Auth Session, Theme).
 - **Persistence:** Zustand `persist` middleware with `partialize` to whitelist persisted keys. Re-validate
   derived flags inside `onRehydrateStorage` — never trust persisted flag directly. Always reassign
-  `state.user = toAuthUser(decoded, state.user?.username ?? "")` after successful decode to normalize
-  stale persisted payloads. Reference: `src/features/auth/store/authStore.ts`.
+  `state.user = toAuthUser(decoded, state.user?.username || decoded.sub)` after successful decode to
+  normalize stale persisted payloads (`sub` is the username). An **expired store-user** token is not
+  destroyed there: it keeps `token`/`user` and sets the non-persisted `isRestoring = true` so the boot
+  refresh can revive it (expired admin tokens are still wiped). `onRehydrateStorage` runs synchronously
+  inside `create()` (localStorage), before `useAuthStore` is assigned — only mutate `state`, never call
+  `apiClient`/the store from it. Reference: `src/features/auth/store/authStore.ts`.
 - **Tailwind v4:** All custom variables go in `src/index.css`. Do **not** create `tailwind.config.js`.
 - **Icons:** `lucide-react`.
 - **Design System:** Follow `.claude/skills/frontend-design`.
@@ -125,10 +136,16 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 - **TypeScript DTOs:** Never `any`. Strict `interface`/`type` matching backend DTOs (`PageResponse<T>`,
   `ErrorResponse`, etc.).
 - **Auth Interceptors:** Axios interceptors auto-attach JWT. Read token via
-  `useAuthStore.getState().token` (no React binding, no circular import). On `401`, response interceptor
-  calls `useAuthStore.getState().logout()` for silent global session clear.
+  `useAuthStore.getState().token` (no React binding, no circular import). `AUTH_PATHS`
+  (`/auth/login`, `/auth/refresh`, `/auth/logout`, `/admin/login`) get no bearer and their `401`s are
+  passed through untouched (a login `401` is bad credentials, never a logout; a refresh `401` is handled
+  by `refreshSession` — no loop). Any other `401`: SUPER_ADMIN → `logout()` (silent global clear, as
+  before); store user → `refreshSession()` once (flag `_authRetried`, typed via `axios` module
+  augmentation — no `any`) and retry the original request; a second `401` → `logout()`. If the failed
+  request carried an older bearer than the store's current token, it retries without refreshing.
 - **Error Handling:** Map HTTP statuses + `error` codes to user-friendly UI. Common: `invalid_credentials`,
-  `store_inactive`, `store_not_found`, `validation_failed` (auth); `store_code_taken` (stores conflict —
+  `store_inactive`, `store_not_found`, `user_inactive`, `invalid_refresh_token`, `refresh_token_reused`,
+  `validation_failed` (auth); `store_code_taken` (stores conflict —
   not generic `conflict`). Use `mapAuthError(err)` from `src/features/auth/utils/errorMessages.ts` for auth.
   Other features create per-feature `mapXxxError` following the same `Record<errorCode, message>` +
   `axios.isAxiosError` shape (reference: `src/features/stores/utils/errorMessages.ts`).
@@ -150,7 +167,8 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 **Wayfinding for this section** — where each topic lives below:
 
 - **Shared HTTP, auth session, guards, routing, error mapping** — first cluster of bullets
-  (`apiClient`, `useAuthStore`, `AdminGuard`/`StoreGuard`/`OwnerGuard`, `mapXxxError` registry).
+  (`apiClient`, `useAuthStore`, `AdminGuard`/`StoreGuard`/`OwnerGuard`, `mapXxxError` registry), plus
+  "Persistent store sessions (refresh token)".
 - **DTO conventions** — "DTO immutability & minimal surface", "DTO field naming mirrors wire format",
   "BigDecimal as `string` in TS".
 - **Layout & responsive UI** — "Layout nesting", "Responsive data tables", "Mobile menu / drawer
@@ -171,13 +189,17 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 Subsequent features MUST reuse these primitives:
 
 - **Axios client:** `src/shared/api/api.ts` exports `apiClient`. All feature APIs import this — no
-  per-feature Axios instances. Auth header + 401→logout interceptors already wired.
+  per-feature Axios instances. Auth header + 401→refresh/logout interceptors already wired.
 - **Auth session store:** `src/features/auth/store/authStore.ts` exports `useAuthStore` with shape
-  `{ token, user, isAuthenticated, setToken, logout }`. Read via `useAuthStore((s) => s.user)`.
+  `{ token, user, isAuthenticated, isRestoring, setToken, refreshSession, restoreSession, logout }`.
+  Read via `useAuthStore((s) => s.user)`. `logout()` is **async** (returns `Promise<void>`): callers
+  that navigate afterwards must `await` it (`StoreLayout.handleLogout`), click handlers use
+  `() => void logout()`.
 - **Shared types:** `src/shared/types/index.ts` exports `PageResponse<T>`. Import for all paginated
   responses — do not redefine per feature.
-- **Error mapping:** `src/features/auth/utils/errorMessages.ts` exports `mapAuthError(err)`. Each feature
-  defines its own `mapXxxError`:
+- **Error mapping:** `src/features/auth/utils/errorMessages.ts` exports `mapAuthError(err)` (codes:
+  `invalid_credentials`, `store_inactive`, `store_not_found`, `user_inactive`, `invalid_refresh_token`,
+  `refresh_token_reused`, `validation_failed`, `conflict`). Each feature defines its own `mapXxxError`:
     - `mapStoresError` — `src/features/stores/utils/errorMessages.ts`
     - `mapAdminProvisioningError` — `src/features/admin/utils/errorMessages.ts`
     - `mapUsersError` — `src/features/users/utils/errorMessages.ts` (codes: `username_taken`,
@@ -210,13 +232,16 @@ Subsequent features MUST reuse these primitives:
   `<p className="text-rose-500 text-sm mt-1">`. Use `inputClass(hasError: boolean)` to toggle
   `border-rose-500 focus:border-rose-500 focus:ring-rose-300/40`. Reference:
   `src/features/admin/components/ProvisionOwnerForm.tsx`.
-- **Token utilities:** `src/features/auth/utils/token.ts` — `decodeToken`, `isExpired`, `toAuthUser`. Reuse;
+- **Token utilities:** `src/features/auth/utils/token.ts` — `decodeToken`, `isExpired`, `msUntilExpiry`,
+  `isStoreRole` (OWNER/CASHIER type guard), `toAuthUser`. Reuse;
   do not call `jwtDecode` directly elsewhere. `decodeToken` is hardened against tampering: it returns
   `null` not only when `jwtDecode` throws (invalid base64) but also when the payload fails shape
   validation (`exp` not a `number`, or `role` not one of `OWNER`/`CASHIER`/`SUPER_ADMIN`). This closes
   the hole where a `{}`-payload token makes `isExpired` compute `NaN < now` → "never expires" with an
   `undefined` role. `setToken` and `authStore`'s `onRehydrateStorage` rely on this `null` to destroy a
-  manipulated session — never weaken `decodeToken` to return a partial payload.
+  manipulated session — never weaken `decodeToken` to return a partial payload. It does **not** check
+  `exp`, so an expired token still yields its role — that is how rehydration tells a restorable store
+  session from an expired admin one.
 - **Route guards:** Three guards in `src/routes/guards/`:
     - `AdminGuard` — `SUPER_ADMIN` only; unauthenticated → `/admin/login`, wrong role → `/login`.
     - `StoreGuard` — `OWNER` or `CASHIER`; else → `/login`. Accepts optional `children` prop (mirrors `AdminGuard`).
@@ -224,9 +249,52 @@ Subsequent features MUST reuse these primitives:
       route (no `children`, renders `<Outlet />`).
 
   Pattern: read `isAuthenticated` + `user.role` from `useAuthStore`, return `<Navigate replace>`
-  synchronously on failure. **Never** `useEffect + navigate` for auth redirects.
+  synchronously on failure. **Never** `useEffect + navigate` for auth redirects. `StoreGuard` and
+  `OwnerGuard` first check `isRestoring` and render `SessionRestoreScreen`
+  (`src/features/auth/components/`, full-screen `Loader2` + "Restaurando tu sesión…", `role="status"`)
+  — never redirect to `/login` while the boot refresh may still revive the session. `AdminGuard` is
+  unchanged. `src/routes/HomeRedirect.tsx` handles `/` and `*` (the PWA `start_url` is `/`): restoring →
+  loader, authenticated store user → `/pos`, everyone else → `/login`. `StoreLogin` applies the same two
+  checks after its hooks, so a live store session never sees the login form; `AdminLogin` is untouched.
 - **Post-login navigation:** Redirect targets in hooks (`src/features/auth/hooks/useLogin.ts`), not
   components. `useAdminLogin` → `/admin/stores`. `useStoreLogin` → `/pos`.
+- **Persistent store sessions (refresh token):** OWNER/CASHIER rarely see the login; SUPER_ADMIN is
+  unchanged (480-min token, no cookie, no refresh).
+    - **Backend contract:** `POST /auth/login` also sets the httpOnly `refresh_token` cookie
+      (`Path=/api/v1/auth`, 60 days, sliding). `POST /auth/refresh` — no body, no `Authorization` —
+      reads the cookie, rotates it and returns the login body with a new 60-min access token.
+      `POST /auth/logout` always answers 204 and clears the cookie. Refresh `401` codes
+      (`invalid_refresh_token`, `refresh_token_reused`, `user_inactive`, `store_inactive`) all mean "go to
+      login". `/admin/login` has no cookie.
+    - **API (`src/features/auth/api/authApi.ts`):** `loginStore`, `refreshStoreSession`,
+      `logoutStoreSession` (5 s timeout) pass `withCredentials: true` **per call** — never set it on
+      `apiClient` globally, and never on `loginAdmin`.
+    - **Single-flight (`authStore.refreshSession(): Promise<RefreshOutcome>`):** one module-level
+      `refreshPromise` shared by every trigger (401 interceptor, boot, timer, visibility), cleared in
+      `finally`, so the rotating cookie is presented once per rotation. Outcomes: `refreshed` (new token
+      via `setToken`, username `user?.username || decoded.sub`); `rejected` (refresh `401` or invalid
+      token → `toast.error(mapAuthError(err))` + `logout()`); `unavailable` (network, 5xx, 429 →
+      session kept, retried later — an offline phone waking up must not land on the login). A
+      `sessionEpoch` bumped by `logout` discards a refresh that settles after the user logged out.
+    - **Boot restore:** `onRehydrateStorage` only flags `isRestoring`; `startSessionKeeper()` (called
+      in `src/main.tsx` before render, once every module has evaluated) runs `restoreSession()`. If it
+      ends `unavailable`, `restoreSession` lets the user in on the expired token (`isAuthenticated:
+      true`) and the interceptor refreshes once the network is back.
+    - **`sessionKeeper.ts` (`src/features/auth/store/`):** reschedules on every token change
+      (`useAuthStore.subscribe`; logout clears the timer) a refresh at `max(ttl − 5 min, 30 s)` — the
+      30 s floor stops a tight loop into the backend's 30/min refresh rate limit when the token lifetime
+      is ≤ 5 min. On `visibilitychange` (visible) and `online` it refreshes only if the token is expired
+      or within the 5-min window, else just reschedules (timers freeze in a backgrounded PWA / sleeping
+      PC). `unavailable` → retry in 60 s. Store sessions only.
+    - **`logout()`:** async and idempotent (module-level `logoutPromise`, so N parallel failed requests
+      fire one call). Store users: `await logoutStoreSession().catch(() => undefined)` **before**
+      resetting `storeProfile`/`notifications`/`cashShift` and clearing the token — a failed call never
+      blocks the local logout. SUPER_ADMIN: no network call.
+    - **Own password change:** the backend revokes every session of a user whose password changes.
+      `UserForm` (edit mode, OWNER-only) has an optional "Nueva contraseña"; `useUserFormSubmit`
+      (`src/features/users/hooks/`) sends `password` only when non-empty. Editing **your own** account
+      → `await logout()` + `toast.info` + `navigate("/login")`; another user → `toast.success` noting
+      their sessions were closed.
 - **Routing:** `src/routes/AppRouter.tsx` uses `createBrowserRouter` + `RouterProvider`. Route map:
     - `/login` — StoreLogin (public)
     - `/admin/login` — AdminLogin (public)
@@ -250,7 +318,7 @@ Subsequent features MUST reuse these primitives:
             - `/pos/products/:id/edit` — ProductForm (edit)
             - `/pos/customers/new` — CustomerForm (create, OWNER only)
             - `/pos/customers/:id/edit` — CustomerForm (edit, OWNER only)
-    - `/` → redirect `/login` | `*` → redirect `/login`
+    - `/` and `*` → `HomeRedirect` (store session → `/pos`, restoring → loader, else `/login`)
 - **Feature folder layout:** `src/features/<domain>/{api,components,hooks,store,types,utils}`. Cross-feature
   deps go through `src/shared/`.
 - **Forms:** HTML5 native validation (`required`, `type="email"`, `pattern`, `maxLength`) for MVP. Promote
@@ -258,8 +326,9 @@ Subsequent features MUST reuse these primitives:
 - **DTO immutability & minimal surface:** Some fields are immutable post-create (`Store.code`,
   `User.username`). Exclude from `UpdateXxxRequest`, render `disabled` in edit forms with "cannot be
   changed" hint. Keep `UpdateXxxRequest` minimal — backend may accept more optional fields (e.g.,
-  `password`, `active` on `UpdateUserRequest`) intentionally out of scope; document the omission with a
-  one-line comment in the types file.
+  `active` on `UpdateUserRequest`, deactivation goes through `DELETE`) intentionally out of scope;
+  document the omission with a one-line comment in the types file. `UpdateUserRequest.password?` is in
+  scope: sent only when the OWNER types a new one (see "Persistent store sessions").
 - **DTO field naming mirrors wire format:** Match TS field names to backend JSON keys — no camelCase ↔
   snake_case translation layer. Backends with `@JsonProperty(snake_case)` (Products, Customers) → snake_case
   TS keys (`full_name`, `credit_limit`, `outstanding_balance`, `purchase_cost`). The `fields` map in
@@ -572,9 +641,9 @@ Subsequent features MUST reuse these primitives:
       calls `clearCurrentShift()` after ack. `reset()` wipes all state including `hasFetched=false` (used
       on logout); `clearCurrentShift()` nulls only `currentShift`/`error` and keeps `hasFetched=true` so
       `OpenShiftModal` reappears immediately.
-    - **Logout integration:** `authStore.logout` calls `useCashShiftStore.getState().reset()` before
-      clearing token — same `getState()` no-React-binding pattern as `apiClient` interceptor. Covers
-      user-switch and silent 401 logout.
+    - **Logout integration:** `authStore.logout` calls `useCashShiftStore.getState().reset()` (after
+      the store user's `POST /auth/logout`) before clearing token — same `getState()` no-React-binding
+      pattern as `apiClient` interceptor. Covers user-switch, failed refresh and SUPER_ADMIN 401 logout.
     - **`OpenShiftModal` — non-dismissible blocking modal (`src/features/cash/components/OpenShiftModal.tsx`):**
       `useModalAnimation(open, { closeOnEscape: false })`, omit `onClick` on backdrop. No X, no Cancel.
       Single submit. Pattern for any mandatory gate.
