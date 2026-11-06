@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  exceedsStock,
   remainingStock,
   usePosStore,
   useCartItemCount,
@@ -222,6 +223,14 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
                     <p className="text-xs text-slate-500">
                       {formatMoney(item.unitPrice)} c/u
                     </p>
+                    {exceedsStock(item.quantity, item.currentStock) && (
+                      <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-rose-600">
+                        <AlertTriangle aria-hidden className="h-3.5 w-3.5 shrink-0" />
+                        {item.currentStock > 0
+                          ? `Stock insuficiente: solo hay ${formatQuantity(item.currentStock, item.unitOfMeasure)} disponibles`
+                          : "Sin existencias: retira el producto"}
+                      </p>
+                    )}
                   </div>
                   <span className="text-sm font-semibold text-slate-800">
                     {formatMoney(item.subtotal)}

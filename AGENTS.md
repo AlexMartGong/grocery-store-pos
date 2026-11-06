@@ -213,7 +213,8 @@ Subsequent features MUST reuse these primitives:
       (`Stock insuficiente para "X": disponible 1, solicitado 3.`), so it wins over the map text.
       Every other sales `InvalidResourceStateException` sends an **English** `message` — keep those
       map-first, never flip the order globally. `isInsufficientStockError(err)` lets `CheckoutModal`
-      add a "ajusta la cantidad en el carrito" hint under its `role="alert"` box.
+      add a "ajusta la cantidad en el carrito" hint under its `role="alert"` box and fire its
+      `onStockConflict` prop (see "Stock conflict refresh").
     - `mapCashShiftError` — `src/features/cash/utils/errorMessages.ts` (codes: `shift_already_open`,
       `open_shift_not_found`, `validation_failed`, `forbidden`)
     - `mapNotificationsError` — `src/features/notifications/utils/errorMessages.ts` (codes:
@@ -441,7 +442,8 @@ Subsequent features MUST reuse these primitives:
 
 - **POS / sales module (`/pos/sales`):** Cash register UI lives in `src/features/sales/`. Reusable parts:
     - **Cart store (`src/features/sales/store/posStore.ts`):** `usePosStore` exposes
-      `{ cart, selectedCustomerId, addItem, updateItemQuantity, removeItem, setCustomer, clearCart }`.
+      `{ cart, selectedCustomerId, addItem, updateItemQuantity, syncStock, removeItem, setCustomer,
+      clearCart }`.
       Selectors `useCartTotal()` and `useCartItemCount()` exported from same file. In-memory only
       (no persist) — closing tab clears it intentionally.
       - `CartItem` carries `unitOfMeasure: UnitOfMeasure` (re-exported via `sales/types/index.ts` from
@@ -456,12 +458,28 @@ Subsequent features MUST reuse these primitives:
         incoming product (a fresh scan/fetch beats the old snapshot).
       - **Stock guard:** `addItem` and `updateItemQuantity` return `boolean`. `false` = refused, cart
         untouched: the resulting line quantity would exceed the stock (`updateItemQuantity` also
-        refuses `quantity <= 0` and a missing line). The store is the single enforcement point;
-        callers turn `false` into `toast.error(stockLimitMessage(...))`. Helpers exported from
-        `posStore.ts`: `exceedsStock(lineQty, stock)` (compares at 3 decimals via `sanitizeQty`, so
-        `0.1 + 0.2` never falsely rejects; non-finite stock fails open) and
-        `remainingStock(stock, inCart)`. UX pre-check only — the backend's `insufficient_stock`
-        stays the source of truth (stale stock, another station's sale).
+        refuses `quantity <= 0` and a missing line). `updateItemQuantity` checks **increases only** —
+        a decrease always passes, so a line left above its stock by `syncStock` can be reduced with
+        "−". The store is the single enforcement point; callers turn `false` into
+        `toast.error(stockLimitMessage(...))`. Helpers exported from `posStore.ts`:
+        `exceedsStock(lineQty, stock)` (compares at 3 decimals via `sanitizeQty`, so `0.1 + 0.2`
+        never falsely rejects; non-finite stock fails open) and `remainingStock(stock, inCart)`.
+        UX pre-check only — the backend's `insufficient_stock` stays the source of truth (stale
+        stock, another station's sale).
+      - **`syncStock(products)`:** sets `currentStock` on the lines whose id matches (`{ id,
+        current_stock }[]`, so `ProductResponse[]` fits) — never touches quantity, skips unknown ids
+        and non-finite values, returns the same state on a no-op. Never refresh stock from inside a
+        refused `addItem`: that would break the "cart untouched on `false`" contract.
+      - **Stock conflict refresh (`src/features/sales/hooks/useStockConflictRefresh.ts`):**
+        `useStockConflictRefresh(reloadCatalog)` returns an async callback that calls
+        `reloadCatalog()` and then `syncStock` with `getProductById` per cart line (`.catch(() =>
+        null)`, same as `SalesList`). Lines are fetched by id because the catalog page is
+        search-filtered and capped at 40, so it may miss the culprit, and the backend has no bulk
+        endpoint (rare error path — N GETs is fine; the rate limit only covers `/auth/*`).
+        `PosScreen` passes it to `CheckoutModal` as `onStockConflict`. `CartSidebar` then flags each
+        line where `exceedsStock(quantity, currentStock)` with the threshold cue (`text-rose-600
+        font-semibold` + `AlertTriangle` + "Stock insuficiente: solo hay N disponibles" / "Sin
+        existencias: retira el producto") — this is how the cashier finds the line in a big cart.
       - **Float precision (IEEE 754):** All quantity mutations go through
         `sanitizeQty = (v: number) => Number(v.toFixed(3))` (module-level in `posStore.ts`) to prevent
         drift accumulation. Applied in `addItem` on **both** branches — merge wraps `existing + new`,
@@ -491,7 +509,11 @@ Subsequent features MUST reuse these primitives:
       page-size 40, active-only) and `usePosCustomers.ts` (single fetch active customers, dropdown
       filtered locally). Both load through `useAsyncData` (products: `useCallback` fetcher over
       `debouncedSearch`; customers: module-level fetcher) and fall back to module-level empty arrays.
-      Reuse instead of inlining `getProducts` / `getCustomers` in POS components.
+      Reuse instead of inlining `getProducts` / `getCustomers` in POS components. `usePosProducts`
+      returns `{ products, loading, error, reload, searchInput, setSearchInput }` (type
+      `PosCatalog`) and is called **once, in `PosScreen`** (it needs `reload` after a stock
+      conflict), which passes it to `ProductGrid` as the `catalog` prop — never call it inside
+      `ProductGrid` again (two hooks = two independent catalogs).
     - **POS formatters:** `src/features/sales/utils/format.ts` exports `formatMoney`, `getInitials`,
       `pastelColorFromId` (deterministic UUID → tailwind class), `formatSaleId` (8-char uppercase prefix),
       `formatSaleDate` (epoch-safe — falls back to `new Date()` when null/invalid/pre-1970), and
@@ -510,8 +532,8 @@ Subsequent features MUST reuse these primitives:
       modal **adds** → `maxQuantity = remainingStock(stock, inCart)`. (2) `CartSidebar` —
       `editingItem: CartItem | null` state, clicking quantity chip opens this modal; modal
       **replaces** → `maxQuantity = item.currentStock`.
-    - **ProductGrid `onProductClick` prop:** Required
-      `onProductClick: (product: ProductResponse) => void` — no longer calls `addItem` directly.
+    - **ProductGrid `onProductClick` prop:** Required `catalog: PosCatalog` (see "POS data hooks")
+      and `onProductClick: (product: ProductResponse) => void` — no longer calls `addItem` directly.
       `PosScreen` owns dispatch (KILO → `QuantityModal`, PIECE → `addItem`). `ProductCard` lives in
       its own file (`src/features/sales/components/ProductCard.tsx`, owns the `stockTone` helper) and
       receives `onAdd` from `ProductGrid`. Card layout: root `<button>` is

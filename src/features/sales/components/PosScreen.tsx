@@ -13,6 +13,8 @@ import {
   usePosStore,
 } from "../store/posStore";
 import { formatMoney, stockLimitMessage } from "../utils/format";
+import { usePosProducts } from "../hooks/usePosProducts";
+import { useStockConflictRefresh } from "../hooks/useStockConflictRefresh";
 import type { CartItem, SaleResponse } from "../types";
 import type { ProductResponse } from "../../products/types";
 import { searchByBarcode } from "../../products/api/productsApi";
@@ -41,6 +43,8 @@ export const PosScreen = () => {
   const total = useCartTotal();
   const addItem = usePosStore((s) => s.addItem);
   const username = useAuthStore((s) => s.user?.username ?? null);
+  const catalog = usePosProducts();
+  const refreshAfterStockConflict = useStockConflictRefresh(catalog.reload);
 
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -169,6 +173,7 @@ export const PosScreen = () => {
     <div className="-m-6 flex h-[calc(100vh-4rem)] flex-col bg-slate-50 md:-m-8 md:flex-row">
       <section className="relative flex-1 overflow-hidden">
         <ProductGrid
+          catalog={catalog}
           onProductClick={handleProductClick}
           onOpenCameraScanner={openCameraScanner}
         />
@@ -228,6 +233,7 @@ export const PosScreen = () => {
         open={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
         onSuccess={handleSaleSuccess}
+        onStockConflict={() => void refreshAfterStockConflict()}
       />
 
       <SaleSummaryModal

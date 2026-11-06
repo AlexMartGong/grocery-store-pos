@@ -1,5 +1,5 @@
 import { AlertCircle, Camera, PackageSearch, Search } from "lucide-react";
-import { usePosProducts } from "../hooks/usePosProducts";
+import type { PosCatalog } from "../hooks/usePosProducts";
 import type { ProductResponse } from "../../products/types";
 import { ProductCard } from "./ProductCard";
 
@@ -17,12 +17,13 @@ const SkeletonCard = () => (
 );
 
 interface ProductGridProps {
+  catalog: PosCatalog;
   onProductClick: (product: ProductResponse) => void;
   onOpenCameraScanner?: () => void;
 }
 
-export const ProductGrid = ({ onProductClick, onOpenCameraScanner }: ProductGridProps) => {
-  const { products, loading, error, searchInput, setSearchInput } = usePosProducts();
+export const ProductGrid = ({ catalog, onProductClick, onOpenCameraScanner }: ProductGridProps) => {
+  const { products, loading, error, searchInput, setSearchInput } = catalog;
 
   return (
     <div className="flex h-full flex-col">

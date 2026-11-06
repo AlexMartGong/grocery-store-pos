@@ -15,8 +15,13 @@ interface PosState {
   selectedCustomerId: string | null;
   /** `false` (cart untouched) when the line total would exceed the product's stock. */
   addItem: (product: ProductForCart, quantity?: number) => boolean;
-  /** `false` (cart untouched) for a non-positive quantity, a missing line or one above its stock. */
+  /**
+   * `false` (cart untouched) for a non-positive quantity, a missing line or an **increase** above
+   * its stock. Decreases always pass, so a line left over stock by `syncStock` can be reduced.
+   */
   updateItemQuantity: (productId: string, quantity: number) => boolean;
+  /** Refreshes `currentStock` of the matching lines; quantities are never touched. */
+  syncStock: (products: ReadonlyArray<Pick<ProductForCart, "id" | "current_stock">>) => void;
   removeItem: (productId: string) => void;
   setCustomer: (customerId: string | null) => void;
   clearCart: () => void;
@@ -83,7 +88,7 @@ export const usePosStore = create<PosState>()((set, get) => ({
     const item = get().cart.find((i) => i.productId === productId);
     if (!item) return false;
     const safeQty = sanitizeQty(quantity);
-    if (exceedsStock(safeQty, item.currentStock)) return false;
+    if (safeQty > item.quantity && exceedsStock(safeQty, item.currentStock)) return false;
     set((state) => ({
       cart: state.cart.map((i) =>
         i.productId === productId
@@ -93,6 +98,19 @@ export const usePosStore = create<PosState>()((set, get) => ({
     }));
     return true;
   },
+  syncStock: (products) =>
+    set((state) => {
+      const fresh = new Map(products.map((p) => [p.id, Number(p.current_stock)]));
+      let changed = false;
+      const cart = state.cart.map((i) => {
+        const stock = fresh.get(i.productId);
+        if (stock === undefined || !Number.isFinite(stock) || stock === i.currentStock) return i;
+        changed = true;
+        return { ...i, currentStock: stock };
+      });
+      // Same state on a no-op sync, so subscribers don't re-render.
+      return changed ? { cart } : state;
+    }),
   removeItem: (productId) =>
     set((state) => ({
       cart: state.cart.filter((i) => i.productId !== productId),

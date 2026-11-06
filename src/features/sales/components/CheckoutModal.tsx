@@ -27,6 +27,8 @@ interface CheckoutModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (sale: SaleResponse, tenderedAmount: number, cartItems: CartItem[]) => void;
+  /** Fired on `insufficient_stock`: the parent reloads the catalog and the cart lines' stock. */
+  onStockConflict?: () => void;
 }
 
 const HIGH_CREDIT_THRESHOLD = 0.9;
@@ -54,7 +56,12 @@ const METHODS: MethodConfig[] = [
   { value: "CREDIT", label: "Crédito", icon: NotebookPen, needsCustomer: true },
 ];
 
-export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) => {
+export const CheckoutModal = ({
+  open,
+  onClose,
+  onSuccess,
+  onStockConflict,
+}: CheckoutModalProps) => {
   const cart = usePosStore((s) => s.cart);
   const selectedCustomerId = usePosStore((s) => s.selectedCustomerId);
   const clearCart = usePosStore((s) => s.clearCart);
@@ -178,7 +185,9 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
       clearCart();
       onSuccess(sale, tenderedAmount, currentCart);
     } catch (err) {
-      setError({ message: mapSalesError(err), stockIssue: isInsufficientStockError(err) });
+      const stockIssue = isInsufficientStockError(err);
+      setError({ message: mapSalesError(err), stockIssue });
+      if (stockIssue) onStockConflict?.();
     } finally {
       setSubmitting(false);
     }
@@ -407,7 +416,8 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
                 <p>{error.message}</p>
                 {error.stockIssue && (
                   <p className="mt-1 text-xs text-rose-600">
-                    Ajusta la cantidad de ese producto en el carrito y vuelve a cobrar.
+                    El carrito marcará el producto con su stock actualizado: ajusta la cantidad y
+                    vuelve a cobrar.
                   </p>
                 )}
               </div>
