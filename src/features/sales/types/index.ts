@@ -49,6 +49,8 @@ export interface CartItem {
   unitPrice: number;
   subtotal: number;
   unitOfMeasure: UnitOfMeasure;
+  /** Product's `current_stock` when last added/scanned — the line's max quantity (UX pre-check). */
+  currentStock: number;
 }
 
 export type CancellationReason =

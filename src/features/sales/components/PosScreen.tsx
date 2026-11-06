@@ -1,18 +1,34 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, ShoppingBag, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { ProductGrid } from "./ProductGrid";
 import { CartSidebar } from "./CartSidebar";
 import { CheckoutModal } from "./CheckoutModal";
 import { SaleSummaryModal } from "./SaleSummaryModal";
 import { QuantityModal } from "./QuantityModal";
-import { useCartItemCount, useCartTotal, usePosStore } from "../store/posStore";
-import { formatMoney } from "../utils/format";
+import {
+  remainingStock,
+  useCartItemCount,
+  useCartTotal,
+  usePosStore,
+} from "../store/posStore";
+import { formatMoney, stockLimitMessage } from "../utils/format";
 import type { CartItem, SaleResponse } from "../types";
 import type { ProductResponse } from "../../products/types";
 import { searchByBarcode } from "../../products/api/productsApi";
 import { useBarcodeScanner } from "../../../shared/hooks/useBarcodeScanner";
 import { playBeep, playErrorBeep, vibrate } from "../../../shared/utils/feedback";
 import { useAuthStore } from "../../auth/store/authStore";
+
+/** How much more of `product` fits in the cart, read outside React (handlers / callbacks). */
+const remainingFor = (product: ProductResponse): number => {
+  const inCart =
+    usePosStore.getState().cart.find((i) => i.productId === product.id)?.quantity ?? 0;
+  return remainingStock(Number(product.current_stock), inCart);
+};
+
+const notifyStockLimit = (product: ProductResponse) =>
+  toast.error(stockLimitMessage(product.name, remainingFor(product), product.unit_of_measure));
 
 const CameraScannerModal = lazy(() =>
   import("../../../shared/components/scanner/CameraScannerModal").then((m) => ({
@@ -40,6 +56,9 @@ export const PosScreen = () => {
     { kind: "success" | "error"; message: string } | null
   >(null);
   const lastScanRef = useRef<{ code: string; time: number } | null>(null);
+  const kiloInCart = usePosStore(
+    (s) => s.cart.find((i) => i.productId === kiloProduct?.id)?.quantity ?? 0,
+  );
 
   useEffect(() => {
     if (!cartDrawerOpen) return;
@@ -84,19 +103,18 @@ export const PosScreen = () => {
           );
           return;
         }
+        // KILO: refuse before opening a modal that could only reject. PIECE: the store refuses.
+        const accepted =
+          product.unit_of_measure === "KILO" ? remainingFor(product) > 0 : addItem(product);
+        if (!accepted) {
+          playErrorBeep();
+          vibrate([60, 50, 60]);
+          notifyStockLimit(product);
+          return;
+        }
         playBeep();
         vibrate(50);
-        if (product.unit_of_measure === "KILO") {
-          setKiloProduct(product);
-        } else {
-          addItem({
-            id: product.id,
-            name: product.name,
-            barcode: product.barcode,
-            sale_price: product.sale_price,
-            unit_of_measure: product.unit_of_measure,
-          });
-        }
+        if (product.unit_of_measure === "KILO") setKiloProduct(product);
       } catch {
         playErrorBeep();
         setScanError("No se pudo consultar el código. Revisa tu conexión.");
@@ -140,15 +158,10 @@ export const PosScreen = () => {
 
   const handleProductClick = (product: ProductResponse) => {
     if (product.unit_of_measure === "KILO") {
-      setKiloProduct(product);
-    } else {
-      addItem({
-        id: product.id,
-        name: product.name,
-        barcode: product.barcode,
-        sale_price: product.sale_price,
-        unit_of_measure: product.unit_of_measure,
-      });
+      if (remainingFor(product) > 0) setKiloProduct(product);
+      else notifyStockLimit(product);
+    } else if (!addItem(product)) {
+      notifyStockLimit(product);
     }
   };
 
@@ -232,20 +245,18 @@ export const PosScreen = () => {
         open={kiloProduct !== null}
         onClose={() => setKiloProduct(null)}
         onConfirm={(weight) => {
-          if (kiloProduct) {
-            addItem({
-              id: kiloProduct.id,
-              name: kiloProduct.name,
-              barcode: kiloProduct.barcode,
-              sale_price: kiloProduct.sale_price,
-              unit_of_measure: kiloProduct.unit_of_measure,
-            }, weight);
-          }
+          // The modal already checked maxQuantity; a refusal here means the cart changed meanwhile.
+          if (kiloProduct && !addItem(kiloProduct, weight)) notifyStockLimit(kiloProduct);
           setKiloProduct(null);
         }}
         initialValue={0}
         unitOfMeasure="KILO"
         productName={kiloProduct?.name ?? ""}
+        maxQuantity={
+          kiloProduct
+            ? remainingStock(Number(kiloProduct.current_stock), kiloInCart)
+            : undefined
+        }
       />
 
       {scannerMounted && (

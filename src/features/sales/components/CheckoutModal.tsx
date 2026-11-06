@@ -13,7 +13,7 @@ import {
 import { useCartTotal, usePosStore } from "../store/posStore";
 import { usePosCustomers } from "../hooks/usePosCustomers";
 import { createSale } from "../api/salesApi";
-import { mapSalesError } from "../utils/errorMessages";
+import { isInsufficientStockError, mapSalesError } from "../utils/errorMessages";
 import { formatMoney } from "../utils/format";
 import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
 import type {
@@ -30,6 +30,12 @@ interface CheckoutModalProps {
 }
 
 const HIGH_CREDIT_THRESHOLD = 0.9;
+
+interface CheckoutError {
+  message: string;
+  /** `insufficient_stock`: the message names the product; add a hint on how to fix the cart. */
+  stockIssue: boolean;
+}
 
 const QUICK_CASH = [50, 100, 200, 500, 1000] as const;
 const QUICK_COINS = [1, 2, 5, 10, 20] as const;
@@ -59,7 +65,7 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
   const [amountPaid, setAmountPaid] = useState("");
   const [isMixed, setIsMixed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<CheckoutError | null>(null);
 
   const { render, show } = useModalAnimation(open, {
     onClose,
@@ -172,7 +178,7 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
       clearCart();
       onSuccess(sale, tenderedAmount, currentCart);
     } catch (err) {
-      setError(mapSalesError(err));
+      setError({ message: mapSalesError(err), stockIssue: isInsufficientStockError(err) });
     } finally {
       setSubmitting(false);
     }
@@ -397,7 +403,14 @@ export const CheckoutModal = ({ open, onClose, onSuccess }: CheckoutModalProps) 
               className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"
             >
               <AlertCircle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
+              <div>
+                <p>{error.message}</p>
+                {error.stockIssue && (
+                  <p className="mt-1 text-xs text-rose-600">
+                    Ajusta la cantidad de ese producto en el carrito y vuelve a cobrar.
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>

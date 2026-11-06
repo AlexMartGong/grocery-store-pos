@@ -1,7 +1,10 @@
 import { useId, useState, useEffect } from "react";
 import { Scale, Hash, CheckCircle2, AlertTriangle, ShoppingCart } from "lucide-react";
+import { toast } from "sonner";
 import { useModalAnimation } from "../../../shared/hooks/useModalAnimation";
 import { useScale } from "../../../shared/hooks/useScale";
+import { exceedsStock } from "../store/posStore";
+import { formatQuantity, stockLimitMessage } from "../utils/format";
 import type { UnitOfMeasure } from "../types";
 
 interface QuantityModalProps {
@@ -11,6 +14,11 @@ interface QuantityModalProps {
   initialValue?: number;
   unitOfMeasure: UnitOfMeasure;
   productName: string;
+  /**
+   * Largest value the cashier may confirm. Callers own the meaning: PosScreen adds to the line
+   * (`stock − inCart`), CartSidebar replaces it (`item.currentStock`). Omitted → no stock check.
+   */
+  maxQuantity?: number;
 }
 
 export const QuantityModal = ({
@@ -20,6 +28,7 @@ export const QuantityModal = ({
   initialValue = 0,
   unitOfMeasure,
   productName,
+  maxQuantity,
 }: QuantityModalProps) => {
   const inputId = useId();
   const titleId = useId();
@@ -39,15 +48,24 @@ export const QuantityModal = ({
 
   const isKilo = unitOfMeasure === "KILO";
 
+  // Rejects (modal stays open so the cashier can correct it) when the value exceeds the stock.
+  const confirmWithinStock = (num: number) => {
+    if (maxQuantity !== undefined && exceedsStock(num, maxQuantity)) {
+      toast.error(stockLimitMessage(productName, maxQuantity, unitOfMeasure));
+      return;
+    }
+    onConfirm(num);
+  };
+
   const handleSubmit = () => {
     const num = Number(value);
     if (!Number.isFinite(num) || num <= 0) return;
-    onConfirm(num);
+    confirmWithinStock(num);
   };
 
   const handleQuickAdd = () => {
     if (!reading.isStable || reading.error) return;
-    onConfirm(reading.weight);
+    confirmWithinStock(reading.weight);
   };
 
   return (
@@ -87,6 +105,11 @@ export const QuantityModal = ({
             <p className="truncate text-sm text-slate-500" title={productName}>
               {productName}
             </p>
+            {maxQuantity !== undefined && (
+              <p className="text-xs font-medium text-slate-500">
+                Disponible: {formatQuantity(maxQuantity, unitOfMeasure)}
+              </p>
+            )}
           </div>
         </div>
 

@@ -1,3 +1,5 @@
+import type { UnitOfMeasure } from "../types";
+
 export const formatMoney = (value: string | number): string => {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return String(value);
@@ -43,3 +45,19 @@ export const formatSaleDate = (iso: string | null | undefined): string => {
     timeStyle: "short",
   }).format(safe);
 };
+
+/** KILO `0.500 kg`; whole PIECE `3 pz`; fractional PIECE `1.5 pz`. */
+export const formatQuantity = (qty: number, unit: UnitOfMeasure): string => {
+  if (unit === "KILO") return `${qty.toFixed(3)} kg`;
+  return Number.isInteger(qty) ? `${qty} pz` : `${qty.toFixed(1)} pz`;
+};
+
+/** Toast text when a cart change would exceed stock; `remaining` = what still fits for that action. */
+export const stockLimitMessage = (
+  name: string,
+  remaining: number,
+  unit: UnitOfMeasure,
+): string =>
+  remaining > 0
+    ? `Stock insuficiente para "${name}": solo quedan ${formatQuantity(remaining, unit)} disponibles.`
+    : `Stock insuficiente para "${name}": no quedan más ${unit === "KILO" ? "kilos" : "unidades"} disponibles.`;

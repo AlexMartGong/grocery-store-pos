@@ -8,9 +8,15 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { usePosStore, useCartItemCount, useCartTotal } from "../store/posStore";
+import { toast } from "sonner";
+import {
+  remainingStock,
+  usePosStore,
+  useCartItemCount,
+  useCartTotal,
+} from "../store/posStore";
 import { usePosCustomers } from "../hooks/usePosCustomers";
-import { formatMoney } from "../utils/format";
+import { formatMoney, formatQuantity, stockLimitMessage } from "../utils/format";
 import { QuantityModal } from "./QuantityModal";
 import type { CartItem } from "../types";
 import type { CustomerResponse } from "../../customers/types";
@@ -36,12 +42,7 @@ const isHighCredit = (c: CustomerResponse): boolean => {
   return used >= HIGH_CREDIT_THRESHOLD * limit;
 };
 
-const formatQty = (item: CartItem): string => {
-  if (item.unitOfMeasure === "KILO") return `${item.quantity.toFixed(3)} kg`;
-  return Number.isInteger(item.quantity)
-    ? `${item.quantity} pz`
-    : `${item.quantity.toFixed(1)} pz`;
-};
+const formatQty = (item: CartItem): string => formatQuantity(item.quantity, item.unitOfMeasure);
 
 export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
   const cart = usePosStore((s) => s.cart);
@@ -71,6 +72,18 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
       removeItem(item.productId);
     } else {
       updateItemQuantity(item.productId, item.quantity - 1);
+    }
+  };
+
+  const handleIncrement = (item: CartItem) => {
+    if (!updateItemQuantity(item.productId, item.quantity + 1)) {
+      toast.error(
+        stockLimitMessage(
+          item.name,
+          remainingStock(item.currentStock, item.quantity),
+          item.unitOfMeasure,
+        ),
+      );
     }
   };
 
@@ -235,9 +248,7 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        updateItemQuantity(item.productId, item.quantity + 1)
-                      }
+                      onClick={() => handleIncrement(item)}
                       aria-label={`Aumentar cantidad de ${item.name}`}
                       className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                     >
@@ -284,12 +295,18 @@ export const CartSidebar = ({ onCheckout, onClose }: CartSidebarProps) => {
         open={editingItem !== null}
         onClose={() => setEditingItem(null)}
         onConfirm={(value) => {
-          if (editingItem) updateItemQuantity(editingItem.productId, value);
+          // The modal already checked maxQuantity; this only fires if the line changed meanwhile.
+          if (editingItem && !updateItemQuantity(editingItem.productId, value)) {
+            toast.error(
+              stockLimitMessage(editingItem.name, editingItem.currentStock, editingItem.unitOfMeasure),
+            );
+          }
           setEditingItem(null);
         }}
         initialValue={editingItem?.quantity ?? 1}
         unitOfMeasure={editingItem?.unitOfMeasure ?? "PIECE"}
         productName={editingItem?.name ?? ""}
+        maxQuantity={editingItem?.currentStock}
       />
     </div>
   );
