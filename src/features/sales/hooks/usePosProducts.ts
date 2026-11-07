@@ -16,7 +16,17 @@ export function usePosProducts() {
     () => getProducts(0, POS_PAGE_SIZE, true, debouncedSearch || undefined),
     [debouncedSearch],
   );
-  const { data, loading, error } = useAsyncData(fetchProducts, mapProductsError);
+  const { data, loading, error, reload } = useAsyncData(fetchProducts, mapProductsError);
 
-  return { products: data?.content ?? NO_PRODUCTS, loading, error, searchInput, setSearchInput };
+  return {
+    products: data?.content ?? NO_PRODUCTS,
+    loading,
+    error,
+    reload,
+    searchInput,
+    setSearchInput,
+  };
 }
+
+/** Owned by `PosScreen` (it needs `reload` after a stock conflict) and passed to `ProductGrid`. */
+export type PosCatalog = ReturnType<typeof usePosProducts>;

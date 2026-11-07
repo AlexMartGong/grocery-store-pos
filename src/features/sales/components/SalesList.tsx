@@ -146,6 +146,8 @@ export const SalesList = () => {
           unitPrice: Number(i.unit_price),
           subtotal: Number(i.subtotal),
           unitOfMeasure: p?.unit_of_measure ?? "PIECE",
+          // Read-only ticket view: the stock is never checked here.
+          currentStock: Number(p?.current_stock ?? 0),
         };
       });
       setModalCartItems(items);
