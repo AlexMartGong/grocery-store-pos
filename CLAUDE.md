@@ -63,8 +63,20 @@ Senior Frontend Engineer building a multi-tenant POS SPA.
 - **JWT decode:** `jwt-decode` ^4.0.0 — only via helpers in `src/features/auth/utils/token.ts`
   (`decodeToken`, `isExpired`, `toAuthUser`). Never call `jwtDecode` directly elsewhere.
 - **Barcode camera:** `html5-qrcode` 2.3.8 — only via `src/shared/components/scanner/CameraScannerModal.tsx`.
-- **PWA:** `vite-plugin-pwa` ^2.0.0 — `VitePWA` plugin in `vite.config.ts`, `registerType: 'autoUpdate'`
-  (cashiers get latest code on reload, no manual step), manifest `display: "standalone"` so the POS
+- **PWA:** `vite-plugin-pwa` ^2.0.0 — `VitePWA` plugin in `vite.config.ts`, `registerType: 'prompt'`,
+  `injectRegister: false`, `workbox.cleanupOutdatedCaches: true`. **No automatic reload:** the cart
+  (`usePosStore`) lives only in memory, so a reload mid-sale would wipe it — the user picks the moment.
+  Never set `skipWaiting`/`clientsClaim` or go back to `autoUpdate`; in prompt mode
+  `updateServiceWorker(true)` sends `SKIP_WAITING`. `usePwaUpdate` + `PwaUpdatePrompt` (mounted once in
+  `src/App.tsx`, outside the router) look for a new `sw.js` every 15 min and on
+  `visibilitychange`/`online`, and show a persistent "Actualizar" banner (see "PWA update prompt").
+  Virtual-module types: `"vite-plugin-pwa/react"` in `tsconfig.app.json` `compilerOptions.types`.
+  `workbox-window` is a direct devDependency pinned to the version `vite-plugin-pwa` resolves (`7.4.1`):
+  pnpm doesn't hoist it and `virtual:pwa-register/react` resolves its imports from the project root, so
+  the build fails without it — bump both together. `public/_headers` (Cloudflare Pages) sends
+  `Cache-Control: no-cache` for `/`, `/index.html`, `/sw.js`, `/manifest.webmanifest` and
+  `public, max-age=31536000, immutable` for `/assets/*`; keep its rules non-overlapping (Pages joins the
+  values of every rule a path matches). Manifest `display: "standalone"` so the POS
   installs as a native-like app on Windows/Android/iOS. Service worker is **auto-generated** — never
   hand-write SW files. Icons: `logo.svg` (`sizes: 'any'`) plus `pwa-192x192.png` / `pwa-512x512.png`
   (PNGs added to `public/` manually). PWA `<head>` meta (`theme-color #0f172a`, `apple-touch-icon`) lives
@@ -183,6 +195,7 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 - **Notifications, inventory, credit payments** — short sub-sections near the end.
 - **Agent printer settings** — "Agent printer settings — multi-station".
 - **Data loading** — "Async data shared hook" (every read on mount / input change goes through it).
+- **PWA updates** — "PWA update prompt" (`usePwaUpdate`, `PwaUpdatePrompt`, banner position / z-index).
 - **Lint compliance** — "Lint compliance — `react-hooks/set-state-in-effect`" and "`react-hooks/refs`".
 
 Subsequent features MUST reuse these primitives:
@@ -675,6 +688,40 @@ Subsequent features MUST reuse these primitives:
   too short to read both message and CTA). Embed any secondary action as a real button
   (`px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 rounded-md font-medium transition-colors`), not a
   text link. Reference: `PosScreen.tsx`'s "Ver ticket" toast.
+
+- **PWA update prompt (`src/shared/`):** a deploy reaches open terminals without F5, never mid-sale.
+    - **`usePwaUpdate` (`src/shared/hooks/usePwaUpdate.ts`):** wraps `useRegisterSW` from
+      `virtual:pwa-register/react` and returns `{ needRefresh, updateApp }` (`needRefresh` arrives as a
+      `[value, setter]` tuple — destructure it). `onRegisteredSW(_swUrl, registration)` starts a
+      `setInterval` (`UPDATE_CHECK_INTERVAL_MS`, 15 min) plus a check on `visibilitychange` (visible) and
+      `online` — timers freeze in a backgrounded PWA / sleeping PC, same as `sessionKeeper`. Each check
+      skips when there is no `registration`, `registration.installing` is set or `navigator.onLine ===
+      false`, and calls `registration.update().catch(() => undefined)`. `useRegisterSW` reads its options
+      once; a module-level `checksStarted` guard keeps one interval + one pair of listeners per page.
+      `updateApp` → `updateServiceWorker(true)` → `SKIP_WAITING`; the page reloads when the new SW takes
+      control. Every tab of that browser reloads with it — a cart open in another tab is lost.
+      `reloadIfUncontrolled` covers the cases where `controlling` never comes. It checks
+      `registration.waiting` **first**: none → the new SW is already active (another tab activated it, or
+      the old one lost its last client), so it reloads right away, controlled or not (else the button
+      loops "Actualizando…" → re-enabled → nothing). Only with a waiting SW does it check `controller`: a
+      hard-reloaded page (Shift+F5) is uncontrolled and, without `clientsClaim`, never gets `controlling`,
+      so it reloads once the waiting SW reaches `activated`. Keep it — cashiers hard-reload by habit.
+    - **`PwaUpdatePrompt` (`src/shared/components/pwa/PwaUpdatePrompt.tsx`):** rendered once in
+      `src/App.tsx` next to `<Toaster>`, outside the router (shows on `/login`, `/admin/*`, `/pos/*`) —
+      never mount it a second time. Persistent, no close button, and not a `sonner` toast (swipe-dismissable,
+      mixed with the rest). Always-mounted `role="status"` + `aria-live="polite"` wrapper
+      (`pointer-events-none`); the banner renders inside only while `needRefresh`. Position: phones below
+      the h-16 header (`top-[4.5rem]`); `md+` centered inside the header band (`md:top-1.5`), whose center
+      is empty (`md:justify-end`) — clear of "Cerrar caja", the cart's "Cobrar", the catalog search and
+      the Toaster. On phones it covers the POS search/camera row and, with the cart drawer open, its
+      customer select (accepted trade-off: hamburger, "Cobrar", drawer X and scan toasts stay free).
+      `z-60`: above every modal and drawer (all ≤ `z-50`, the blocking `OpenShiftModal` included) so
+      "Actualizar" is always reachable; sonner (`z-index: 999999999`) stays on top. New overlays above
+      `z-50` must account for it. Entrance only (double `requestAnimationFrame`, local `show` state) — do
+      **not** use `useModalAnimation`: it locks body scroll for as long as it renders.
+    - **Dev:** in `pnpm dev` the plugin serves a no-op `useRegisterSW` stub, so the banner never shows.
+      Test with `pnpm build && pnpm preview`, a second build with a visible change, then DevTools →
+      Application → Service Workers → "Update".
 
 - **Cash shifts module (`/pos/*` gate):** Shift lifecycle in `src/features/cash/`. `StoreLayout` mounts
   `<OpenShiftModal>` and `<CloseShiftModal>` as siblings of `<main>` — they gate every `/pos/*` route.

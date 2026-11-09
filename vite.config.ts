@@ -9,7 +9,9 @@ export default defineConfig({
         react(),
         tailwindcss(),
         VitePWA({
-            registerType: 'autoUpdate',
+            registerType: 'prompt',
+            injectRegister: false,
+            workbox: {cleanupOutdatedCaches: true},
             includeAssets: ['logo.svg'],
             manifest: {
                 name: 'Venta Core',
