@@ -12,7 +12,7 @@ import {
     Users,
     Wallet,
 } from "lucide-react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useMatch, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../../features/auth/store/authStore";
 import { useCashShiftStore } from "../../../features/cash/store/cashShiftStore";
 import { CloseShiftModal } from "../../../features/cash/components/CloseShiftModal";
@@ -42,6 +42,9 @@ export const StoreLayout = () => {
     const [agentSettingsOpen, setAgentSettingsOpen] = useState(false);
 
     const isOwner = user?.role === "OWNER";
+    // Venta is immersive: at md+ the sidebar becomes the same off-canvas drawer phones use.
+    const collapsed = useMatch("/pos/sales") !== null;
+    const desktopHidden = collapsed ? "" : "md:hidden";
 
     const loadShift = useCallback(() => {
         void fetchCurrentShift();
@@ -74,16 +77,18 @@ export const StoreLayout = () => {
         <div className="flex h-dvh w-full overflow-hidden bg-slate-50">
             {isMobileMenuOpen && (
                 <div
-                    className="fixed inset-0 z-40 bg-black/50 md:hidden"
+                    className={`fixed inset-0 z-40 bg-black/50 ${desktopHidden}`}
                     onClick={() => setIsMobileMenuOpen(false)}
                     aria-hidden="true"
                 />
             )}
 
             <aside
-                className={`fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col overflow-y-auto bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
-                    isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-                }`}
+                // Off-screen on desktop while collapsed: keep its links out of the tab order.
+                inert={collapsed && !isMobileMenuOpen}
+                className={`fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col overflow-y-auto bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out ${
+                    collapsed ? "" : "md:relative md:translate-x-0"
+                } ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
             >
                 <div className="flex h-16 items-center px-6">
                     <span className="text-lg font-bold text-white">{profile?.name || "Cargando..."}</span>
@@ -164,12 +169,16 @@ export const StoreLayout = () => {
             </aside>
 
             <div className="flex flex-1 flex-col overflow-hidden">
-                <header className="flex h-16 shrink-0 items-center justify-between md:justify-end gap-4 border-b bg-white px-6">
+                <header
+                    className={`flex h-16 shrink-0 items-center justify-between gap-4 border-b bg-white px-6 ${
+                        collapsed ? "" : "md:justify-end"
+                    }`}
+                >
                     <button
                         onClick={() => setIsMobileMenuOpen((prev) => !prev)}
                         aria-label="Toggle navigation menu"
                         aria-expanded={isMobileMenuOpen}
-                        className="flex items-center rounded-lg p-3 text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 md:hidden"
+                        className={`flex items-center rounded-lg p-3 text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${desktopHidden}`}
                     >
                         <Menu size={20} />
                     </button>

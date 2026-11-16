@@ -185,7 +185,7 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
   "BigDecimal as `string` in TS".
 - **Layout & responsive UI** — "Layout nesting", "Responsive data tables", "Mobile menu / drawer
   shared hook", "Modal entrance / exit animation pattern", "Mobile slide-in drawer pattern", "Global
-  scrollbar-gutter", "POS full-bleed layout escape".
+  scrollbar-gutter", "POS full-bleed layout escape", "Sidebar auto-collapse on Venta".
 - **List patterns** — "List search pattern (remote vs local)", "Cross-feature deep-link via URL
   params", "Self-action protection", "Hide actions already in target state", "Threshold warning
   indicators", "Inline destructive confirmation".
@@ -620,6 +620,15 @@ Subsequent features MUST reuse these primitives:
   matches `<header className="h-16">` of `StoreLayout`. Future immersive pages (kitchen display, scanner)
   follow the same escape.
 
+- **Sidebar auto-collapse on Venta:** `StoreLayout` computes `collapsed = useMatch("/pos/sales") !== null`
+  (exact match — `/pos/sales-history` stays expanded). While `collapsed`, the `md:` overrides that pin
+  the sidebar are dropped — `md:relative md:translate-x-0` on `<aside>`, `md:hidden` on the backdrop and
+  the hamburger, `md:justify-end` on `<header>` — so desktop/tablet get the same off-canvas drawer as
+  phones (catalog +256 px). The closed drawer is `inert`, keeping its off-screen links out of the tab
+  order. Keep each conditional class a whole string literal (Tailwind v4 scans source text). Only Venta
+  collapses: the other modules are tables/forms where navigation matters more than width. No toggle, no
+  persisted preference — never add a second sidebar state next to `useMobileMenu`.
+
 - **Modal entrance / exit animation pattern:** Modals that mount/unmount conditionally must animate both
   ways. Two state flags + double `requestAnimationFrame` for entry, `setTimeout(EXIT_DURATION)` before
   unmount for exit:
@@ -713,7 +722,8 @@ Subsequent features MUST reuse these primitives:
       mixed with the rest). Always-mounted `role="status"` + `aria-live="polite"` wrapper
       (`pointer-events-none`); the banner renders inside only while `needRefresh`. Position: phones below
       the h-16 header (`top-[4.5rem]`); `md+` centered inside the header band (`md:top-1.5`), whose center
-      is empty (`md:justify-end`) — clear of "Cerrar caja", the cart's "Cobrar", the catalog search and
+      is empty (`md:justify-end`; `justify-between` on Venta, hamburger at the left) — clear of
+      "Cerrar caja", the cart's "Cobrar", the catalog search and
       the Toaster. On phones it covers the POS search/camera row and, with the cart drawer open, its
       customer select (accepted trade-off: hamburger, "Cobrar", drawer X and scan toasts stay free).
       `z-60`: above every modal and drawer (all ≤ `z-50`, the blocking `OpenShiftModal` included) so
