@@ -48,6 +48,7 @@ src/
     cash/         # Cash-shift lifecycle (open / close, gate over /pos/*)
     customers/    # Customer CRUD with credit-limit tracking + payments
     inventory/    # Manual stock adjustments (OWNER)
+    landing/      # Public marketing page at / (features, plans, WhatsApp CTAs)
     notifications/# Server-push alerts (low stock, overdue credit) for OWNER
     products/     # Catalog + inventory with quick price / stock adjustments
     sales/        # POS checkout UI, sales history, ticket / agent printing
@@ -82,6 +83,7 @@ and `role`.
 ## Routes (current)
 
 ```
+/                                   HomeRedirect → /pos (store session) or LandingPage (public)
 /login                              StoreLogin (public)
 /admin/login                        AdminLogin (public)
 /admin                              AdminGuard → AdminLayout

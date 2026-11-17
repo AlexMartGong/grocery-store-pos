@@ -94,7 +94,7 @@ Senior Frontend Engineer building a multi-tenant POS SPA.
 Feature-Driven (Domain) Architecture aligned with backend modules.
 
 - `src/features/<feature-name>` — components, hooks, stores, API per domain (`admin`, `stores`, `users`,
-  `products`, `sales`, `customers`, `cash`, `notifications`, `inventory`, `settings`).
+  `products`, `sales`, `customers`, `cash`, `notifications`, `inventory`, `settings`, `landing`).
 - `src/shared/` — global UI components, utilities, generic hooks.
 - `src/routes/` — route definitions mapping to feature pages.
 
@@ -196,6 +196,7 @@ Feature-Driven (Domain) Architecture aligned with backend modules.
 - **Agent printer settings** — "Agent printer settings — multi-station".
 - **Data loading** — "Async data shared hook" (every read on mount / input change goes through it).
 - **PWA updates** — "PWA update prompt" (`usePwaUpdate`, `PwaUpdatePrompt`, banner position / z-index).
+- **Public landing page** — "Public landing page" (`src/features/landing/`, static plans, WhatsApp CTAs).
 - **Lint compliance** — "Lint compliance — `react-hooks/set-state-in-effect`" and "`react-hooks/refs`".
 
 Subsequent features MUST reuse these primitives:
@@ -271,9 +272,11 @@ Subsequent features MUST reuse these primitives:
   `OwnerGuard` first check `isRestoring` and render `SessionRestoreScreen`
   (`src/features/auth/components/`, full-screen `Loader2` + "Restaurando tu sesión…", `role="status"`)
   — never redirect to `/login` while the boot refresh may still revive the session. `AdminGuard` is
-  unchanged. `src/routes/HomeRedirect.tsx` handles `/` and `*` (the PWA `start_url` is `/`): restoring →
-  loader, authenticated store user → `/pos`, everyone else → `/login`. `StoreLogin` applies the same two
-  checks after its hooks, so a live store session never sees the login form; `AdminLogin` is untouched.
+  unchanged. `src/routes/HomeRedirect.tsx` handles `/` (the PWA `start_url`): restoring → loader,
+  authenticated store user → `/pos`, session-less installed app (`display-mode: standalone`) → `/login`,
+  everyone else → the public `LandingPage` (see "Public landing page"); `*` redirects to `/`.
+  `StoreLogin` applies the same two session checks after its hooks, so a live store session never sees
+  the login form; `AdminLogin` is untouched.
 - **Post-login navigation:** Redirect targets in hooks (`src/features/auth/hooks/useLogin.ts`), not
   components. `useAdminLogin` → `/admin/stores`. `useStoreLogin` → `/pos`.
 - **Persistent store sessions (refresh token):** OWNER/CASHIER rarely see the login; SUPER_ADMIN is
@@ -336,7 +339,9 @@ Subsequent features MUST reuse these primitives:
             - `/pos/products/:id/edit` — ProductForm (edit)
             - `/pos/customers/new` — CustomerForm (create, OWNER only)
             - `/pos/customers/:id/edit` — CustomerForm (edit, OWNER only)
-    - `/` and `*` → `HomeRedirect` (store session → `/pos`, restoring → loader, else `/login`)
+    - `/` → `HomeRedirect` (restoring → loader, store session → `/pos`, installed app → `/login`, else
+      the public `LandingPage`)
+    - `*` → `<Navigate to="/" replace />`
 - **Feature folder layout:** `src/features/<domain>/{api,components,hooks,store,types,utils}`. Cross-feature
   deps go through `src/shared/`.
 - **Forms:** HTML5 native validation (`required`, `type="email"`, `pattern`, `maxLength`) for MVP. Promote
@@ -612,6 +617,29 @@ Subsequent features MUST reuse these primitives:
   (pulls in ~370 kB `html5-qrcode`) behind a `scannerMounted` latch — the modal mounts only after the
   first camera tap and **stays mounted** thereafter so its entrance/exit animation survives later opens.
   New routes/feature pages follow this: lazy unless needed for first paint.
+
+- **Public landing page (`/`, `src/features/landing/`):** marketing page for visitors without a store
+  session, rendered by `HomeRedirect` — no guard, no layout, no API calls, no store. The feature has no
+  `api/`/`store/`; its static data lives in `constants/`.
+    - **Loading:** `HomeRedirect` lazy-loads `LandingPage` inside
+      `<Suspense fallback={<SessionRestoreScreen />}>`, so `/login` and `/pos` never download it. Never
+      import anything from `features/landing/` eagerly.
+    - **Installed app:** `isStandaloneApp()` in `HomeRedirect` (`display-mode: standalone`) sends a
+      session-less installed PWA to `/login` — whoever opens the installed app is already a customer (a
+      cashier whose refresh was rejected), never a prospect. Keep that check after the store-session one.
+    - **Static data (`constants/landingData.ts`):** `LANDING_FEATURES`, `LANDING_PLANS`,
+      `WHATSAPP_PHONE` and `buildSalesWhatsAppUrl(message)` (fixed sales number — not `subscriptions`'
+      `buildWhatsAppUrl`, which normalizes store numbers and may return `null`). Plan prices are a
+      **hand-kept copy** of the backend plans (`getPlans()` is SUPER_ADMIN-only): monthly and yearly are
+      both written out, never derived — change them together with the backend. `utils/pricing.ts` owns
+      `formatPrice` and `planContactMessage(plan, cycle)` (the pre-filled WhatsApp text per plan + cycle).
+    - **Layout rules:** `LandingNavbar` is `sticky h-16 z-40`, logo left, anchors + "Iniciar sesión"
+      right — its center stays empty because `PwaUpdatePrompt` sits in that band from `md` up (on
+      narrower `md`/`lg` widths the banner may cover the anchors; the login button stays free). Sections
+      carry `scroll-mt-16`. `HeroPosMockup` is an illustration: `role="img"` + `aria-label`, plain
+      `<div>`/`<span>` children, never real buttons. The Mensual/Anual toggle is a native radio group
+      (`sr-only` inputs in a `<fieldset>`), same idiom as `PlanTierCard`. The hero entrance uses
+      `animate-landing-rise` (`@theme` block in `src/index.css`), always behind `motion-safe:`.
 
 - **POS full-bleed layout escape:** `StoreLayout` `<main>` is `flex-1 bg-slate-50 p-6 md:p-8`. POS catalog
   + cart needs full viewport, so `PosScreen.tsx` root cancels padding and pins height:

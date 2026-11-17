@@ -136,7 +136,7 @@ const router = createBrowserRouter([
     ],
   },
   { path: "/", element: <HomeRedirect /> },
-  { path: "*", element: <HomeRedirect /> },
+  { path: "*", element: <Navigate to="/" replace /> },
 ]);
 
 export const AppRouter = () => <RouterProvider router={router} />;
