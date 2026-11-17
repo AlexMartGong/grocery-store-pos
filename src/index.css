@@ -3,3 +3,19 @@
 html {
   scrollbar-gutter: stable;
 }
+
+/* Landing page hero entrance. Always use it behind `motion-safe:`. */
+@theme {
+  --animate-landing-rise: landing-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes landing-rise {
+    from {
+      opacity: 0;
+      transform: translateY(1rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
